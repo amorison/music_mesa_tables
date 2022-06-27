@@ -1,8 +1,12 @@
-use std::io::{Read, self};
+use std::io::{self, Read};
 
-use ndarray::{Array3, s, ArrayView3};
+use ndarray::{s, Array3, ArrayView3};
 
-use crate::{fort_unfmt::read_fort_record, index::{Range, Idx}, raw_tables::eos::{AllRawTables, MetalRawTables, RawTable, RAW_TABLES}};
+use crate::{
+    fort_unfmt::read_fort_record,
+    index::{Idx, Range},
+    raw_tables::eos::{AllRawTables, MetalRawTables, RawTable, RAW_TABLES},
+};
 
 /// The collection of all MESA tables available
 pub struct AllTables {
@@ -78,7 +82,7 @@ pub struct VolumeEnergyTable {
 
 impl VolumeEnergyTable {
     fn read_from<R: Read>(mut reader: R) -> io::Result<Self> {
-        let mut shape = [0_u32; 3];  // ne, nv, nvars
+        let mut shape = [0_u32; 3]; // ne, nv, nvars
         read_fort_record(&mut reader, &mut shape)?;
         let shape = shape.map(|e| e as usize);
 
@@ -123,7 +127,7 @@ impl VolumeEnergyTable {
 
 #[cfg(test)]
 mod tests {
-    use crate::{is_close::IsClose};
+    use crate::is_close::IsClose;
 
     use super::AllTables;
 

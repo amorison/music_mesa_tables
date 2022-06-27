@@ -50,7 +50,11 @@ impl Range {
         // in the crate to avoid misuses.
         // assert!(step > 0.0);
         assert!(n_values > 1);
-        Self { first, step, n_values }
+        Self {
+            first,
+            step,
+            n_values,
+        }
     }
 
     pub fn from_slice(slc: &[f64]) -> Result<Self, &'static str> {
@@ -63,8 +67,16 @@ impl Range {
         if step <= 0.0 {
             return Err("given slice should be in stricly increasing order");
         }
-        let range = Self { first, step, n_values};
-        if !range.into_iter().enumerate().all(|(i, v)| v.is_close(slc[i])) {
+        let range = Self {
+            first,
+            step,
+            n_values,
+        };
+        if !range
+            .into_iter()
+            .enumerate()
+            .all(|(i, v)| v.is_close(slc[i]))
+        {
             return Err("given slice should be a linear space");
         }
         Ok(range)
