@@ -37,25 +37,25 @@ impl Default for AllTables {
 
 /// The collection of MESA tables at a given metallicity
 pub struct ConstMetalTables {
-    he_fracs: Range,
+    h_fracs: Range,
     tables: Vec<VolumeEnergyTable>,
 }
 
 impl From<&MetalRawTables> for ConstMetalTables {
     fn from(rawtbls: &MetalRawTables) -> Self {
         Self {
-            he_fracs: rawtbls.he_fracs,
+            h_fracs: rawtbls.h_fracs,
             tables: rawtbls.tables.iter().map(|t| t.into()).collect(),
         }
     }
 }
 
 impl ConstMetalTables {
-    pub fn take_at_he_frac(mut self, he_frac: f64) -> Result<VolumeEnergyTable, String> {
-        match self.he_fracs.find_value(he_frac) {
+    pub fn take_at_h_frac(mut self, h_frac: f64) -> Result<VolumeEnergyTable, String> {
+        match self.h_fracs.find_value(h_frac) {
             Idx::Exact(i) => Ok(self.tables.swap_remove(i)),
             Idx::Between(i, j) => todo!(),
-            Idx::OutOfRange => Err("Helium fraction out of range".to_owned()),
+            Idx::OutOfRange => Err("Hydrogen fraction out of range".to_owned()),
         }
     }
 }
@@ -132,7 +132,7 @@ mod tests {
         let ve_eos = AllTables::default()
             .take_at_metallicity(0.02)
             .expect("metallicity is in range")
-            .take_at_he_frac(0.18)
+            .take_at_h_frac(0.8)
             .expect("helium fraction is in range");
         assert!(ve_eos.log_volume().first().is_close(0.0));
         assert!(ve_eos.log_volume().last().is_close(14.0));
