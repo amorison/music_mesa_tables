@@ -5,6 +5,8 @@ use ndarray::{s, Array3, ArrayView3};
 use crate::{
     fort_unfmt::read_fort_record,
     index::{Idx, Range},
+    interp::LinearInterpolator,
+    is_close::IsClose,
     raw_tables::eos::{AllRawTables, MetalRawTables, RawTable, RAW_TABLES},
 };
 
@@ -18,7 +20,29 @@ impl AllTables {
     pub fn take_at_metallicity(mut self, metallicity: f64) -> Result<ConstMetalTables, String> {
         match self.metallicities.find_value(metallicity) {
             Idx::Exact(i) => Ok(self.tables.swap_remove(i)),
-            Idx::Between(i, j) => todo!(),
+            Idx::Between(i, j) => {
+                let l_tables = self.tables.swap_remove(i);
+                let r_tables = self.tables.swap_remove(j);
+                let lin = LinearInterpolator::new(
+                    self.metallicities.at(i),
+                    self.metallicities.at(j),
+                    metallicity,
+                );
+                let h_fracs = l_tables
+                    .h_fracs
+                    .subrange_in(r_tables.h_fracs)
+                    .ok_or("Hydrogen fractions do not overlap")?;
+                let tables: Vec<_> = h_fracs
+                    .into_iter()
+                    .map(move |h_frac| {
+                        // this is not in-place!
+                        let left = l_tables.at_h_frac(h_frac)?;
+                        let right = r_tables.at_h_frac(h_frac)?;
+                        left.interp_with(&right, &lin)
+                    })
+                    .collect::<Result<_, _>>()?;
+                Ok(ConstMetalTables { h_fracs, tables })
+            }
             Idx::OutOfRange => Err("metallicity out of range".to_owned()),
         }
     }
@@ -58,7 +82,26 @@ impl ConstMetalTables {
     pub fn take_at_h_frac(mut self, h_frac: f64) -> Result<VolumeEnergyTable, String> {
         match self.h_fracs.find_value(h_frac) {
             Idx::Exact(i) => Ok(self.tables.swap_remove(i)),
-            Idx::Between(i, j) => todo!(),
+            Idx::Between(i, j) => {
+                let left = self.tables.swap_remove(i);
+                let right = self.tables.swap_remove(j);
+                let lin = LinearInterpolator::new(self.h_fracs.at(i), self.h_fracs.at(j), h_frac);
+                // not in-place! lin should have in-place impl too
+                left.interp_with(&right, &lin)
+            }
+            Idx::OutOfRange => Err("Hydrogen fraction out of range".to_owned()),
+        }
+    }
+
+    pub fn at_h_frac(&self, h_frac: f64) -> Result<VolumeEnergyTable, String> {
+        match self.h_fracs.find_value(h_frac) {
+            Idx::Exact(i) => Ok(self.tables[i].clone()),
+            Idx::Between(i, j) => {
+                let left = &self.tables[i];
+                let right = &self.tables[j];
+                let lin = LinearInterpolator::new(self.h_fracs.at(i), self.h_fracs.at(j), h_frac);
+                left.interp_with(&right, &lin)
+            }
             Idx::OutOfRange => Err("Hydrogen fraction out of range".to_owned()),
         }
     }
@@ -70,6 +113,7 @@ impl From<&RawTable> for VolumeEnergyTable {
     }
 }
 
+#[derive(Clone)]
 /// Represent a MESA table in volume/energy space at a given composition.
 pub struct VolumeEnergyTable {
     /// Volume index (in log)
@@ -123,6 +167,24 @@ impl VolumeEnergyTable {
     pub fn values(&self) -> ArrayView3<f64> {
         self.values.view()
     }
+
+    pub(crate) fn interp_with(
+        &self,
+        other: &Self,
+        lin: &LinearInterpolator,
+    ) -> Result<Self, String> {
+        if !self.log_volume.is_close(other.log_volume) {
+            Err("log V index don't match".to_owned())
+        } else if !self.log_energy.is_close(other.log_energy) {
+            Err("log E index don't match".to_owned())
+        } else {
+            Ok(Self {
+                values: lin.interp(self.values.view(), other.values.view()),
+                log_volume: self.log_volume,
+                log_energy: self.log_energy,
+            })
+        }
+    }
 }
 
 #[cfg(test)]
@@ -143,4 +205,7 @@ mod tests {
         assert!(ve_eos.log_energy().first().is_close(10.5));
         assert!(ve_eos.log_energy().last().is_close(17.5));
     }
+
+    #[test]
+    fn interp_metal() {}
 }

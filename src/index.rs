@@ -82,6 +82,31 @@ impl Range {
         Ok(range)
     }
 
+    pub fn contains(&self, value: f64) -> bool {
+        let last = self.last();
+        (value >= self.first && value <= last) || value.is_close(self.first) || value.is_close(last)
+    }
+
+    pub fn subrange_in(&self, other: Range) -> Option<Range> {
+        let (ifirst, first) = self
+            .into_iter()
+            .enumerate()
+            .find(|&(_, v)| other.contains(v))?;
+        let n_values = 1
+            + (ifirst + 1..self.n_values)
+                .filter(|&i| other.contains(self.at(i)))
+                .count();
+        if n_values >= 2 {
+            Some(Self {
+                first,
+                n_values,
+                step: self.step,
+            })
+        } else {
+            None
+        }
+    }
+
     pub fn at(&self, index: usize) -> f64 {
         self.get(index).expect("index is out of range")
     }
