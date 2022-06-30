@@ -141,9 +141,9 @@ impl VolumeEnergyTable {
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
         let mut values = Array3::zeros(shape);
-        for i_v in 0..shape[0] {
-            for i_e in 0..shape[1] {
-                let mut slc = values.slice_mut(s![i_v, i_e, ..]);
+        for i_v in 0..shape[1] {
+            for i_e in 0..shape[0] {
+                let mut slc = values.slice_mut(s![i_e, i_v, ..]);
                 let raw_slc = slc.as_slice_mut().expect("values should be contiguous");
                 read_fort_record(&mut reader, raw_slc)?;
             }
