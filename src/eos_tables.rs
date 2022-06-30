@@ -5,10 +5,28 @@ use ndarray::{s, Array3, ArrayView3};
 use crate::{
     fort_unfmt::read_fort_record,
     index::{Idx, Range},
-    interp::LinearInterpolator,
+    interp::{cubic_spline, LinearInterpolator},
     is_close::IsClose,
     raw_tables::eos::{AllRawTables, MetalRawTables, RawTable, RAW_TABLES},
 };
+
+/// State variable labels, all quantities except Gamma1 and Gamma are logarithmic.
+#[derive(Copy, Clone)]
+#[repr(usize)]
+pub enum StateVar {
+    Density,
+    Pressure,
+    Pgas,
+    Temperature,
+    DPresDDensEcst,
+    DPresDEnerDcst,
+    DTempDDensEcst,
+    DTempDEnerDcst,
+    Entropy,
+    DTempDPresScst,
+    Gamma1,
+    Gamma,
+}
 
 /// The collection of all MESA tables available
 pub struct AllTables {
@@ -185,13 +203,93 @@ impl VolumeEnergyTable {
             })
         }
     }
+
+    pub fn at(&self, energy: f64, volume: f64, var: StateVar) -> Result<f64, &'static str> {
+        let ivar = var as usize;
+        match (
+            self.log_energy.find_value(energy.log10()),
+            self.log_volume.find_value(volume.log10()),
+        ) {
+            (Idx::OutOfRange, _) | (_, Idx::OutOfRange) => Err("energy or volume out of range"),
+            (Idx::Exact(0), _) | (Idx::Between(0, _), _) => Err("energy in lower values"),
+            (_, Idx::Exact(0)) | (_, Idx::Between(0, _)) => Err("temperature in lower values"),
+            (Idx::Exact(n), _) | (Idx::Between(_, n), _) if n == self.log_energy.n_values() - 1 => {
+                Err("energy in higher values")
+            }
+            (_, Idx::Exact(n)) | (_, Idx::Between(_, n)) if n == self.log_volume.n_values() - 1 => {
+                Err("temperature in higher values")
+            }
+            (Idx::Exact(i_e), Idx::Exact(i_v)) => Ok(self.values[[i_e, i_v, var as usize]]),
+            (Idx::Exact(i_e), Idx::Between(i_v, _)) => Ok(cubic_spline(
+                [
+                    self.log_volume.at(i_v - 1),
+                    self.log_volume.at(i_v),
+                    self.log_volume.at(i_v + 1),
+                    self.log_volume.at(i_v + 2),
+                ],
+                [
+                    self.values[[i_e, i_v - 1, ivar]],
+                    self.values[[i_e, i_v, ivar]],
+                    self.values[[i_e, i_v + 1, ivar]],
+                    self.values[[i_e, i_v + 2, ivar]],
+                ],
+                volume.log10(),
+            )),
+            (Idx::Between(i_e, _), Idx::Exact(i_v)) => Ok(cubic_spline(
+                [
+                    self.log_energy.at(i_e - 1),
+                    self.log_energy.at(i_e),
+                    self.log_energy.at(i_e + 1),
+                    self.log_energy.at(i_e + 2),
+                ],
+                [
+                    self.values[[i_e - 1, i_v, ivar]],
+                    self.values[[i_e, i_v, ivar]],
+                    self.values[[i_e + 1, i_v, ivar]],
+                    self.values[[i_e + 2, i_v, ivar]],
+                ],
+                energy.log10(),
+            )),
+            (Idx::Between(i_e, _), Idx::Between(i_v, _)) => {
+                let loge = [
+                    self.log_energy.at(i_e - 1),
+                    self.log_energy.at(i_e),
+                    self.log_energy.at(i_e + 1),
+                    self.log_energy.at(i_e + 2),
+                ];
+                let mut vals = [0.0; 4];
+                for (i, iv) in (i_v - 1..=i_v + 2).enumerate() {
+                    vals[i] = cubic_spline(
+                        loge,
+                        [
+                            self.values[[i_e - 1, iv, ivar]],
+                            self.values[[i_e, iv, ivar]],
+                            self.values[[i_e + 1, iv, ivar]],
+                            self.values[[i_e + 2, iv, ivar]],
+                        ],
+                        energy.log10(),
+                    );
+                }
+                Ok(cubic_spline(
+                    [
+                        self.log_volume.at(i_v - 1),
+                        self.log_volume.at(i_v),
+                        self.log_volume.at(i_v + 1),
+                        self.log_volume.at(i_v + 2),
+                    ],
+                    vals,
+                    volume.log10(),
+                ))
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::is_close::IsClose;
 
-    use super::AllTables;
+    use super::{AllTables, StateVar};
 
     #[test]
     fn read_eos_table() {
@@ -207,5 +305,19 @@ mod tests {
     }
 
     #[test]
-    fn interp_metal() {}
+    fn check_density() {
+        let ve_eos = AllTables::default()
+            .take_at_metallicity(0.02)
+            .expect("metallicity is in range")
+            .take_at_h_frac(0.8)
+            .expect("hydrogen fraction is in range");
+        // these values are voluntarily intricate to not be at a grid point.
+        let energy = 2.24e15;
+        let volume = 1.32e8;
+        let log_density = ve_eos
+            .at(energy, volume, StateVar::Density)
+            .expect("point is on the grid");
+        let fit_density = volume.log10() + 0.7 * energy.log10() - 20.0;
+        assert!((log_density - fit_density) / fit_density < 1e-2);
+    }
 }
