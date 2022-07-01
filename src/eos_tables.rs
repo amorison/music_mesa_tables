@@ -204,11 +204,11 @@ impl VolumeEnergyTable {
         }
     }
 
-    pub fn at(&self, energy: f64, volume: f64, var: StateVar) -> Result<f64, &'static str> {
+    pub fn at(&self, log_energy: f64, log_volume: f64, var: StateVar) -> Result<f64, &'static str> {
         let ivar = var as usize;
         match (
-            self.log_energy.find_value(energy.log10()),
-            self.log_volume.find_value(volume.log10()),
+            self.log_energy.find_value(log_energy),
+            self.log_volume.find_value(log_volume),
         ) {
             (Idx::OutOfRange, _) | (_, Idx::OutOfRange) => Err("energy or volume out of range"),
             (Idx::Exact(0), _) | (Idx::Between(0, _), _) => Err("energy in lower values"),
@@ -233,7 +233,7 @@ impl VolumeEnergyTable {
                     self.values[[i_e, i_v + 1, ivar]],
                     self.values[[i_e, i_v + 2, ivar]],
                 ],
-                volume.log10(),
+                log_volume,
             )),
             (Idx::Between(i_e, _), Idx::Exact(i_v)) => Ok(cubic_spline(
                 [
@@ -248,7 +248,7 @@ impl VolumeEnergyTable {
                     self.values[[i_e + 1, i_v, ivar]],
                     self.values[[i_e + 2, i_v, ivar]],
                 ],
-                energy.log10(),
+                log_energy,
             )),
             (Idx::Between(i_e, _), Idx::Between(i_v, _)) => {
                 let loge = [
@@ -267,7 +267,7 @@ impl VolumeEnergyTable {
                             self.values[[i_e + 1, iv, ivar]],
                             self.values[[i_e + 2, iv, ivar]],
                         ],
-                        energy.log10(),
+                        log_energy,
                     );
                 }
                 Ok(cubic_spline(
@@ -278,7 +278,7 @@ impl VolumeEnergyTable {
                         self.log_volume.at(i_v + 2),
                     ],
                     vals,
-                    volume.log10(),
+                    log_volume,
                 ))
             }
         }
@@ -312,12 +312,12 @@ mod tests {
             .take_at_h_frac(0.8)
             .expect("hydrogen fraction is in range");
         // these values are voluntarily intricate to not be at a grid point.
-        let energy = 2.24e15;
-        let volume = 1.32e8;
+        let log_energy = 2.24e15_f64.log10();
+        let log_volume = 1.32e8_f64.log10();
         let log_density = ve_eos
-            .at(energy, volume, StateVar::Density)
+            .at(log_energy, log_volume, StateVar::Density)
             .expect("point is on the grid");
-        let fit_density = volume.log10() + 0.7 * energy.log10() - 20.0;
+        let fit_density = log_volume + 0.7 * log_energy - 20.0;
         assert!((log_density - fit_density) / fit_density < 1e-2);
     }
 }
