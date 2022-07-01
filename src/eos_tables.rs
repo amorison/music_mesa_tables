@@ -1,11 +1,11 @@
 use std::io::{self, Read};
 
-use ndarray::{s, Array3, ArrayView3};
+use ndarray::{s, Array3, ArrayView3, Axis};
 
 use crate::{
     fort_unfmt::read_fort_record,
     index::{Idx, Range},
-    interp::{cubic_spline, LinearInterpolator},
+    interp::{cubic_spline_2d, LinearInterpolator},
     is_close::IsClose,
     raw_tables::eos::{AllRawTables, MetalRawTables, RawTable, RAW_TABLES},
 };
@@ -205,83 +205,13 @@ impl VolumeEnergyTable {
     }
 
     pub fn at(&self, log_energy: f64, log_volume: f64, var: StateVar) -> Result<f64, &'static str> {
-        let ivar = var as usize;
-        match (
-            self.log_energy.find_value(log_energy),
-            self.log_volume.find_value(log_volume),
-        ) {
-            (Idx::OutOfRange, _) | (_, Idx::OutOfRange) => Err("energy or volume out of range"),
-            (Idx::Exact(0), _) | (Idx::Between(0, _), _) => Err("energy in lower values"),
-            (_, Idx::Exact(0)) | (_, Idx::Between(0, _)) => Err("temperature in lower values"),
-            (Idx::Exact(n), _) | (Idx::Between(_, n), _) if n == self.log_energy.n_values() - 1 => {
-                Err("energy in higher values")
-            }
-            (_, Idx::Exact(n)) | (_, Idx::Between(_, n)) if n == self.log_volume.n_values() - 1 => {
-                Err("temperature in higher values")
-            }
-            (Idx::Exact(i_e), Idx::Exact(i_v)) => Ok(self.values[[i_e, i_v, var as usize]]),
-            (Idx::Exact(i_e), Idx::Between(i_v, _)) => Ok(cubic_spline(
-                [
-                    self.log_volume.at(i_v - 1),
-                    self.log_volume.at(i_v),
-                    self.log_volume.at(i_v + 1),
-                    self.log_volume.at(i_v + 2),
-                ],
-                [
-                    self.values[[i_e, i_v - 1, ivar]],
-                    self.values[[i_e, i_v, ivar]],
-                    self.values[[i_e, i_v + 1, ivar]],
-                    self.values[[i_e, i_v + 2, ivar]],
-                ],
-                log_volume,
-            )),
-            (Idx::Between(i_e, _), Idx::Exact(i_v)) => Ok(cubic_spline(
-                [
-                    self.log_energy.at(i_e - 1),
-                    self.log_energy.at(i_e),
-                    self.log_energy.at(i_e + 1),
-                    self.log_energy.at(i_e + 2),
-                ],
-                [
-                    self.values[[i_e - 1, i_v, ivar]],
-                    self.values[[i_e, i_v, ivar]],
-                    self.values[[i_e + 1, i_v, ivar]],
-                    self.values[[i_e + 2, i_v, ivar]],
-                ],
-                log_energy,
-            )),
-            (Idx::Between(i_e, _), Idx::Between(i_v, _)) => {
-                let loge = [
-                    self.log_energy.at(i_e - 1),
-                    self.log_energy.at(i_e),
-                    self.log_energy.at(i_e + 1),
-                    self.log_energy.at(i_e + 2),
-                ];
-                let mut vals = [0.0; 4];
-                for (i, iv) in (i_v - 1..=i_v + 2).enumerate() {
-                    vals[i] = cubic_spline(
-                        loge,
-                        [
-                            self.values[[i_e - 1, iv, ivar]],
-                            self.values[[i_e, iv, ivar]],
-                            self.values[[i_e + 1, iv, ivar]],
-                            self.values[[i_e + 2, iv, ivar]],
-                        ],
-                        log_energy,
-                    );
-                }
-                Ok(cubic_spline(
-                    [
-                        self.log_volume.at(i_v - 1),
-                        self.log_volume.at(i_v),
-                        self.log_volume.at(i_v + 1),
-                        self.log_volume.at(i_v + 2),
-                    ],
-                    vals,
-                    log_volume,
-                ))
-            }
-        }
+        cubic_spline_2d(
+            self.log_energy,
+            self.log_volume,
+            self.values().index_axis(Axis(2), var as usize),
+            log_energy,
+            log_volume,
+        )
     }
 }
 
