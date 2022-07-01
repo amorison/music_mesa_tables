@@ -39,8 +39,8 @@ impl AllTables {
         match self.metallicities.find_value(metallicity) {
             Idx::Exact(i) => Ok(self.tables.swap_remove(i)),
             Idx::Between(i, j) => {
-                let l_tables = self.tables.swap_remove(i);
                 let r_tables = self.tables.swap_remove(j);
+                let l_tables = self.tables.swap_remove(i);
                 let lin = LinearInterpolator::new(
                     self.metallicities.at(i),
                     self.metallicities.at(j),
@@ -101,8 +101,8 @@ impl ConstMetalTables {
         match self.h_fracs.find_value(h_frac) {
             Idx::Exact(i) => Ok(self.tables.swap_remove(i)),
             Idx::Between(i, j) => {
-                let left = self.tables.swap_remove(i);
                 let right = self.tables.swap_remove(j);
+                let left = self.tables.swap_remove(i);
                 let lin = LinearInterpolator::new(self.h_fracs.at(i), self.h_fracs.at(j), h_frac);
                 // not in-place! lin should have in-place impl too
                 left.interp_with(&right, &lin)
