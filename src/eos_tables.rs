@@ -123,6 +123,23 @@ impl ConstMetalTables {
             Idx::OutOfRange => Err("Hydrogen fraction out of range".to_owned()),
         }
     }
+
+    pub fn at(&self, h_frac: f64, log_energy: f64, log_volume: f64, var: StateVar) -> Result<f64, &'static str> {
+        match self.h_fracs.find_value(h_frac) {
+            Idx::Exact(i) => self.tables[i].at(log_energy, log_volume, var),
+            Idx::Between(i, j) => {
+                let lin = LinearInterpolator::new(self.h_fracs.at(i), self.h_fracs.at(j), h_frac);
+                let loges = self.tables[i].log_energy();
+                let logvs = self.tables[i].log_volume();
+                let table = lin.interp(
+                    self.tables[i].values().index_axis(Axis(2), var as usize),
+                    self.tables[j].values().index_axis(Axis(2), var as usize),
+                );
+                cubic_spline_2d(loges, logvs, table.view(), log_energy, log_volume)
+            }
+            Idx::OutOfRange => Err("Hydrogen fraction out of range"),
+        }
+    }
 }
 
 impl From<&RawTable> for VolumeEnergyTable {
@@ -249,5 +266,28 @@ mod tests {
             .expect("point is on the grid");
         let fit_density = log_volume + 0.7 * log_energy - 20.0;
         assert!((log_density - fit_density) / fit_density < 1e-2);
+    }
+
+    #[test]
+    fn interp_compo_consistency() {
+        let z_eos = AllTables::default()
+            .take_at_metallicity(0.02)
+            .expect("metallicity is in range");
+        let h_frac = 1.0 - 0.35776 - 0.02;
+        let log_energy = 3.6349e+15_f64.log10();
+        let log_density = 8.3537_f64.log10();
+        let log_vol = 20.0 + log_density - 0.7 * log_energy;
+
+        let logt_direct = z_eos.at(h_frac, log_energy, log_vol, StateVar::Temperature)
+            .expect("requested state in range");
+
+        let ve_eos = z_eos
+            .take_at_h_frac(h_frac)
+            .expect("hydrogen fraction is in range");
+        let logt_full_interp = ve_eos
+            .at(log_energy, log_vol, StateVar::Temperature)
+            .expect("requested state in range");
+
+        assert!(logt_direct.is_close(logt_full_interp))
     }
 }
