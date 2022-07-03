@@ -1,4 +1,5 @@
 use crate::{interp::SplineStencil, is_close::IsClose};
+use thiserror::Error;
 
 #[derive(Copy, Clone)]
 pub struct Range {
@@ -7,10 +8,25 @@ pub struct Range {
     n_values: usize,
 }
 
+#[derive(Error, Debug)]
+pub enum RangeError {
+    #[error("range should have at least two elements")]
+    FewerThanTwoValues,
+    #[error("range should be in stricly increasing order")]
+    NotInIncreasingOrder,
+    #[error("range should be a linear space")]
+    NotLinear,
+}
+
+#[derive(Error, Debug)]
+#[error("value {value} is out of bounds")]
+pub struct OutOfBoundsError {
+    value: f64,
+}
+
 pub enum IdxLin {
     Exact(usize),
     Between(usize, usize),
-    OutOfRange,
 }
 
 pub struct RangeIterator {
@@ -57,15 +73,15 @@ impl Range {
         }
     }
 
-    pub fn from_slice(slc: &[f64]) -> Result<Self, &'static str> {
+    pub fn from_slice(slc: &[f64]) -> Result<Self, RangeError> {
         let n_values = slc.len();
         if n_values < 2 {
-            return Err("given slice should have at least two elements");
+            return Err(RangeError::FewerThanTwoValues);
         }
         let first = slc[0];
         let step = (slc[n_values - 1] - first) / (n_values - 1) as f64;
         if step <= 0.0 {
-            return Err("given slice should be in stricly increasing order");
+            return Err(RangeError::NotInIncreasingOrder);
         }
         let range = Self {
             first,
@@ -77,7 +93,7 @@ impl Range {
             .enumerate()
             .all(|(i, v)| v.is_close(slc[i]))
         {
-            return Err("given slice should be a linear space");
+            return Err(RangeError::NotLinear);
         }
         Ok(range)
     }
@@ -135,50 +151,50 @@ impl Range {
         self.n_values
     }
 
-    pub fn idx_lin(&self, value: f64) -> IdxLin {
+    pub fn idx_lin(&self, value: f64) -> Result<IdxLin, OutOfBoundsError> {
         if value.is_close(self.first) {
-            IdxLin::Exact(0)
+            Ok(IdxLin::Exact(0))
         } else if value.is_close(self.last()) {
-            IdxLin::Exact(self.n_values - 1)
+            Ok(IdxLin::Exact(self.n_values - 1))
         } else if value < self.first || value > self.last() {
-            IdxLin::OutOfRange
+            Err(OutOfBoundsError { value })
         } else {
             let iguess = ((value - self.first) / self.step).floor() as usize;
             if value.is_close(self.at(iguess)) {
-                IdxLin::Exact(iguess)
+                Ok(IdxLin::Exact(iguess))
             } else if self.get(iguess + 1).map_or(false, |v| v.is_close(value)) {
-                IdxLin::Exact(iguess + 1)
+                Ok(IdxLin::Exact(iguess + 1))
             } else {
-                IdxLin::Between(iguess, iguess + 1)
+                Ok(IdxLin::Between(iguess, iguess + 1))
             }
         }
     }
 
-    pub fn spline_stencil(&self, value: f64) -> SplineStencil {
+    pub fn spline_stencil(&self, value: f64) -> Result<SplineStencil, OutOfBoundsError> {
         let lside = self.at(1);
         let rside = self.at(self.n_values - 2);
         if self.n_values < 4 {
-            SplineStencil::OutOfRange
+            Err(OutOfBoundsError { value })
         } else if value.is_close(lside) {
-            SplineStencil::Exact { i: 1, value }
+            Ok(SplineStencil::Exact { i: 1, value })
         } else if value.is_close(rside) {
-            SplineStencil::Exact {
+            Ok(SplineStencil::Exact {
                 i: self.n_values - 2,
                 value,
-            }
+            })
         } else if value < lside || value > rside {
-            SplineStencil::OutOfRange
+            Err(OutOfBoundsError { value })
         } else {
             let iguess = ((value - self.first) / self.step).floor() as usize;
             if value.is_close(self.at(iguess)) {
-                SplineStencil::Exact { i: iguess, value }
+                Ok(SplineStencil::Exact { i: iguess, value })
             } else if self.get(iguess + 1).map_or(false, |v| v.is_close(value)) {
-                SplineStencil::Exact {
+                Ok(SplineStencil::Exact {
                     i: iguess + 1,
                     value,
-                }
+                })
             } else {
-                SplineStencil::Centered {
+                Ok(SplineStencil::Centered {
                     r: iguess - 1..iguess + 3,
                     xs: [
                         self.at(iguess - 1),
@@ -187,7 +203,7 @@ impl Range {
                         self.at(iguess + 2),
                     ],
                     at: value,
-                }
+                })
             }
         }
     }

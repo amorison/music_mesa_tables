@@ -4,7 +4,7 @@ use ndarray::{s, Array3, ArrayView3, Axis};
 
 use crate::{
     fort_unfmt::read_fort_record,
-    index::{IdxLin, Range},
+    index::{IdxLin, OutOfBoundsError, Range},
     interp::{cubic_spline_2d, LinearInterpolator},
     is_close::IsClose,
     raw_tables::eos::{AllRawTables, MetalRawTables, RawTable, RAW_TABLES},
@@ -35,8 +35,11 @@ pub struct AllTables {
 }
 
 impl AllTables {
-    pub fn take_at_metallicity(mut self, metallicity: f64) -> Result<ConstMetalTables, String> {
-        match self.metallicities.idx_lin(metallicity) {
+    pub fn take_at_metallicity(
+        mut self,
+        metallicity: f64,
+    ) -> Result<ConstMetalTables, OutOfBoundsError> {
+        match self.metallicities.idx_lin(metallicity)? {
             IdxLin::Exact(i) => Ok(self.tables.swap_remove(i)),
             IdxLin::Between(i, j) => {
                 let r_tables = self.tables.swap_remove(j);
@@ -49,19 +52,18 @@ impl AllTables {
                 let h_fracs = l_tables
                     .h_fracs
                     .subrange_in(r_tables.h_fracs)
-                    .ok_or("Hydrogen fractions do not overlap")?;
+                    .expect("Hydrogen fractions should overlap");
                 let tables: Vec<_> = h_fracs
                     .into_iter()
                     .map(move |h_frac| {
                         // this is not in-place!
                         let left = l_tables.at_h_frac(h_frac)?;
                         let right = r_tables.at_h_frac(h_frac)?;
-                        left.interp_with(&right, &lin)
+                        Ok(left.interp_with(&right, &lin))
                     })
                     .collect::<Result<_, _>>()?;
                 Ok(ConstMetalTables { h_fracs, tables })
             }
-            IdxLin::OutOfRange => Err("metallicity out of range".to_owned()),
         }
     }
 }
@@ -97,30 +99,28 @@ impl From<&MetalRawTables> for ConstMetalTables {
 }
 
 impl ConstMetalTables {
-    pub fn take_at_h_frac(mut self, h_frac: f64) -> Result<VolumeEnergyTable, String> {
-        match self.h_fracs.idx_lin(h_frac) {
+    pub fn take_at_h_frac(mut self, h_frac: f64) -> Result<VolumeEnergyTable, OutOfBoundsError> {
+        match self.h_fracs.idx_lin(h_frac)? {
             IdxLin::Exact(i) => Ok(self.tables.swap_remove(i)),
             IdxLin::Between(i, j) => {
                 let right = self.tables.swap_remove(j);
                 let left = self.tables.swap_remove(i);
                 let lin = LinearInterpolator::new(self.h_fracs.at(i), self.h_fracs.at(j), h_frac);
                 // not in-place! lin should have in-place impl too
-                left.interp_with(&right, &lin)
+                Ok(left.interp_with(&right, &lin))
             }
-            IdxLin::OutOfRange => Err("Hydrogen fraction out of range".to_owned()),
         }
     }
 
-    pub fn at_h_frac(&self, h_frac: f64) -> Result<VolumeEnergyTable, String> {
-        match self.h_fracs.idx_lin(h_frac) {
+    pub fn at_h_frac(&self, h_frac: f64) -> Result<VolumeEnergyTable, OutOfBoundsError> {
+        match self.h_fracs.idx_lin(h_frac)? {
             IdxLin::Exact(i) => Ok(self.tables[i].clone()),
             IdxLin::Between(i, j) => {
                 let left = &self.tables[i];
                 let right = &self.tables[j];
                 let lin = LinearInterpolator::new(self.h_fracs.at(i), self.h_fracs.at(j), h_frac);
-                left.interp_with(&right, &lin)
+                Ok(left.interp_with(&right, &lin))
             }
-            IdxLin::OutOfRange => Err("Hydrogen fraction out of range".to_owned()),
         }
     }
 
@@ -130,8 +130,8 @@ impl ConstMetalTables {
         log_energy: f64,
         log_volume: f64,
         var: StateVar,
-    ) -> Result<f64, &'static str> {
-        match self.h_fracs.idx_lin(h_frac) {
+    ) -> Result<f64, OutOfBoundsError> {
+        match self.h_fracs.idx_lin(h_frac)? {
             IdxLin::Exact(i) => self.tables[i].at(log_energy, log_volume, var),
             IdxLin::Between(i, j) => {
                 let lin = LinearInterpolator::new(self.h_fracs.at(i), self.h_fracs.at(j), h_frac);
@@ -141,13 +141,12 @@ impl ConstMetalTables {
                     self.tables[i].values().index_axis(Axis(2), var as usize),
                     self.tables[j].values().index_axis(Axis(2), var as usize),
                 );
-                cubic_spline_2d(
-                    loges.spline_stencil(log_energy),
-                    logvs.spline_stencil(log_volume),
+                Ok(cubic_spline_2d(
+                    loges.spline_stencil(log_energy)?,
+                    logvs.spline_stencil(log_volume)?,
                     table.view(),
-                )
+                ))
             }
-            IdxLin::OutOfRange => Err("Hydrogen fraction out of range"),
         }
     }
 }
@@ -213,30 +212,27 @@ impl VolumeEnergyTable {
         self.values.view()
     }
 
-    pub(crate) fn interp_with(
-        &self,
-        other: &Self,
-        lin: &LinearInterpolator,
-    ) -> Result<Self, String> {
-        if !self.log_volume.is_close(other.log_volume) {
-            Err("log V index don't match".to_owned())
-        } else if !self.log_energy.is_close(other.log_energy) {
-            Err("log E index don't match".to_owned())
-        } else {
-            Ok(Self {
-                values: lin.interp(self.values.view(), other.values.view()),
-                log_volume: self.log_volume,
-                log_energy: self.log_energy,
-            })
+    pub(crate) fn interp_with(&self, other: &Self, lin: &LinearInterpolator) -> Self {
+        assert!(self.log_volume.is_close(other.log_volume));
+        assert!(self.log_energy.is_close(other.log_energy));
+        Self {
+            values: lin.interp(self.values.view(), other.values.view()),
+            log_volume: self.log_volume,
+            log_energy: self.log_energy,
         }
     }
 
-    pub fn at(&self, log_energy: f64, log_volume: f64, var: StateVar) -> Result<f64, &'static str> {
-        cubic_spline_2d(
-            self.log_energy.spline_stencil(log_energy),
-            self.log_volume.spline_stencil(log_volume),
+    pub fn at(
+        &self,
+        log_energy: f64,
+        log_volume: f64,
+        var: StateVar,
+    ) -> Result<f64, OutOfBoundsError> {
+        Ok(cubic_spline_2d(
+            self.log_energy.spline_stencil(log_energy)?,
+            self.log_volume.spline_stencil(log_volume)?,
             self.values().index_axis(Axis(2), var as usize),
-        )
+        ))
     }
 }
 

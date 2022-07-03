@@ -40,7 +40,6 @@ pub enum SplineStencil {
         xs: [f64; 4],
         at: f64,
     },
-    OutOfRange,
 }
 
 impl SplineStencil {
@@ -53,14 +52,13 @@ impl SplineStencil {
         (1.0 - t) * y[1] + t * y[2] + t * (1.0 - t) * (a * (1.0 - t) + b * t)
     }
 
-    pub fn apply_to(&self, arr: ArrayView1<'_, f64>) -> Result<f64, &'static str> {
+    pub fn apply_to(&self, arr: ArrayView1<'_, f64>) -> f64 {
         match self {
-            SplineStencil::Exact { i, .. } => Ok(arr[*i]),
-            SplineStencil::OutOfRange => Err("out of range"),
+            SplineStencil::Exact { i, .. } => arr[*i],
             SplineStencil::Centered { r, xs, at } => {
                 let i = r.start;
                 let y: [f64; 4] = [arr[i], arr[i + 1], arr[i + 2], arr[i + 3]];
-                Ok(Self::low_level_spline(*xs, y, *at))
+                Self::low_level_spline(*xs, y, *at)
             }
         }
     }
@@ -70,11 +68,8 @@ pub(crate) fn cubic_spline_2d(
     x_st: SplineStencil,
     y_st: SplineStencil,
     z: ArrayView2<'_, f64>,
-) -> Result<f64, &'static str> {
+) -> f64 {
     match (x_st, y_st) {
-        (SplineStencil::OutOfRange, _) | (_, SplineStencil::OutOfRange) => {
-            Err("requested position is out of range")
-        }
         (SplineStencil::Exact { i: i_x, .. }, y_st) => y_st.apply_to(z.index_axis(Axis(0), i_x)),
         (x_st, SplineStencil::Exact { i: i_y, .. }) => x_st.apply_to(z.index_axis(Axis(1), i_y)),
         (
@@ -87,9 +82,9 @@ pub(crate) fn cubic_spline_2d(
         ) => {
             let mut z_at_ys = [0.0; 4];
             for (i, iy) in y_r.enumerate() {
-                z_at_ys[i] = x_st.apply_to(z.index_axis(Axis(1), iy))?;
+                z_at_ys[i] = x_st.apply_to(z.index_axis(Axis(1), iy));
             }
-            Ok(SplineStencil::low_level_spline(ys, z_at_ys, at_y))
+            SplineStencil::low_level_spline(ys, z_at_ys, at_y)
         }
     }
 }
