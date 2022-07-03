@@ -50,7 +50,7 @@ pub(crate) fn cubic_spline_2d(
     at_x: f64,
     at_y: f64,
 ) -> Result<f64, &'static str> {
-    match (x.find_value(at_x), y.find_value(at_y)) {
+    match (x.idx_lin(at_x), y.idx_lin(at_y)) {
         (IdxLin::OutOfRange, _) | (_, IdxLin::OutOfRange) => {
             Err("requested position is out of range")
         }

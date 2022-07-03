@@ -36,7 +36,7 @@ pub struct AllTables {
 
 impl AllTables {
     pub fn take_at_metallicity(mut self, metallicity: f64) -> Result<ConstMetalTables, String> {
-        match self.metallicities.find_value(metallicity) {
+        match self.metallicities.idx_lin(metallicity) {
             IdxLin::Exact(i) => Ok(self.tables.swap_remove(i)),
             IdxLin::Between(i, j) => {
                 let r_tables = self.tables.swap_remove(j);
@@ -98,7 +98,7 @@ impl From<&MetalRawTables> for ConstMetalTables {
 
 impl ConstMetalTables {
     pub fn take_at_h_frac(mut self, h_frac: f64) -> Result<VolumeEnergyTable, String> {
-        match self.h_fracs.find_value(h_frac) {
+        match self.h_fracs.idx_lin(h_frac) {
             IdxLin::Exact(i) => Ok(self.tables.swap_remove(i)),
             IdxLin::Between(i, j) => {
                 let right = self.tables.swap_remove(j);
@@ -112,7 +112,7 @@ impl ConstMetalTables {
     }
 
     pub fn at_h_frac(&self, h_frac: f64) -> Result<VolumeEnergyTable, String> {
-        match self.h_fracs.find_value(h_frac) {
+        match self.h_fracs.idx_lin(h_frac) {
             IdxLin::Exact(i) => Ok(self.tables[i].clone()),
             IdxLin::Between(i, j) => {
                 let left = &self.tables[i];
@@ -125,7 +125,7 @@ impl ConstMetalTables {
     }
 
     pub fn at(&self, h_frac: f64, log_energy: f64, log_volume: f64, var: StateVar) -> Result<f64, &'static str> {
-        match self.h_fracs.find_value(h_frac) {
+        match self.h_fracs.idx_lin(h_frac) {
             IdxLin::Exact(i) => self.tables[i].at(log_energy, log_volume, var),
             IdxLin::Between(i, j) => {
                 let lin = LinearInterpolator::new(self.h_fracs.at(i), self.h_fracs.at(j), h_frac);

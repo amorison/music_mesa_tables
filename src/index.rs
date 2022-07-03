@@ -135,7 +135,7 @@ impl Range {
         self.n_values
     }
 
-    pub fn find_value(&self, value: f64) -> IdxLin {
+    pub fn idx_lin(&self, value: f64) -> IdxLin {
         if value.is_close(self.first) {
             IdxLin::Exact(0)
         } else if value.is_close(self.last()) {
