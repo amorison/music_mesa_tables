@@ -7,7 +7,7 @@ pub struct Range {
     n_values: usize,
 }
 
-pub enum Idx {
+pub enum IdxLin {
     Exact(usize),
     Between(usize, usize),
     OutOfRange,
@@ -135,21 +135,21 @@ impl Range {
         self.n_values
     }
 
-    pub fn find_value(&self, value: f64) -> Idx {
+    pub fn find_value(&self, value: f64) -> IdxLin {
         if value.is_close(self.first) {
-            Idx::Exact(0)
+            IdxLin::Exact(0)
         } else if value.is_close(self.last()) {
-            Idx::Exact(self.n_values - 1)
+            IdxLin::Exact(self.n_values - 1)
         } else if value < self.first || value > self.last() {
-            Idx::OutOfRange
+            IdxLin::OutOfRange
         } else {
             let iguess = ((value - self.first) / self.step).floor() as usize;
             if value == self.at(iguess) {
-                Idx::Exact(iguess)
+                IdxLin::Exact(iguess)
             } else if self.get(iguess + 1).map_or(false, |v| v == value) {
-                Idx::Exact(iguess + 1)
+                IdxLin::Exact(iguess + 1)
             } else {
-                Idx::Between(iguess, iguess + 1)
+                IdxLin::Between(iguess, iguess + 1)
             }
         }
     }

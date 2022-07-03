@@ -4,7 +4,7 @@ use ndarray::{s, Array3, ArrayView3, Axis};
 
 use crate::{
     fort_unfmt::read_fort_record,
-    index::{Idx, Range},
+    index::{IdxLin, Range},
     interp::{cubic_spline_2d, LinearInterpolator},
     is_close::IsClose,
     raw_tables::eos::{AllRawTables, MetalRawTables, RawTable, RAW_TABLES},
@@ -37,8 +37,8 @@ pub struct AllTables {
 impl AllTables {
     pub fn take_at_metallicity(mut self, metallicity: f64) -> Result<ConstMetalTables, String> {
         match self.metallicities.find_value(metallicity) {
-            Idx::Exact(i) => Ok(self.tables.swap_remove(i)),
-            Idx::Between(i, j) => {
+            IdxLin::Exact(i) => Ok(self.tables.swap_remove(i)),
+            IdxLin::Between(i, j) => {
                 let r_tables = self.tables.swap_remove(j);
                 let l_tables = self.tables.swap_remove(i);
                 let lin = LinearInterpolator::new(
@@ -61,7 +61,7 @@ impl AllTables {
                     .collect::<Result<_, _>>()?;
                 Ok(ConstMetalTables { h_fracs, tables })
             }
-            Idx::OutOfRange => Err("metallicity out of range".to_owned()),
+            IdxLin::OutOfRange => Err("metallicity out of range".to_owned()),
         }
     }
 }
@@ -99,35 +99,35 @@ impl From<&MetalRawTables> for ConstMetalTables {
 impl ConstMetalTables {
     pub fn take_at_h_frac(mut self, h_frac: f64) -> Result<VolumeEnergyTable, String> {
         match self.h_fracs.find_value(h_frac) {
-            Idx::Exact(i) => Ok(self.tables.swap_remove(i)),
-            Idx::Between(i, j) => {
+            IdxLin::Exact(i) => Ok(self.tables.swap_remove(i)),
+            IdxLin::Between(i, j) => {
                 let right = self.tables.swap_remove(j);
                 let left = self.tables.swap_remove(i);
                 let lin = LinearInterpolator::new(self.h_fracs.at(i), self.h_fracs.at(j), h_frac);
                 // not in-place! lin should have in-place impl too
                 left.interp_with(&right, &lin)
             }
-            Idx::OutOfRange => Err("Hydrogen fraction out of range".to_owned()),
+            IdxLin::OutOfRange => Err("Hydrogen fraction out of range".to_owned()),
         }
     }
 
     pub fn at_h_frac(&self, h_frac: f64) -> Result<VolumeEnergyTable, String> {
         match self.h_fracs.find_value(h_frac) {
-            Idx::Exact(i) => Ok(self.tables[i].clone()),
-            Idx::Between(i, j) => {
+            IdxLin::Exact(i) => Ok(self.tables[i].clone()),
+            IdxLin::Between(i, j) => {
                 let left = &self.tables[i];
                 let right = &self.tables[j];
                 let lin = LinearInterpolator::new(self.h_fracs.at(i), self.h_fracs.at(j), h_frac);
                 left.interp_with(&right, &lin)
             }
-            Idx::OutOfRange => Err("Hydrogen fraction out of range".to_owned()),
+            IdxLin::OutOfRange => Err("Hydrogen fraction out of range".to_owned()),
         }
     }
 
     pub fn at(&self, h_frac: f64, log_energy: f64, log_volume: f64, var: StateVar) -> Result<f64, &'static str> {
         match self.h_fracs.find_value(h_frac) {
-            Idx::Exact(i) => self.tables[i].at(log_energy, log_volume, var),
-            Idx::Between(i, j) => {
+            IdxLin::Exact(i) => self.tables[i].at(log_energy, log_volume, var),
+            IdxLin::Between(i, j) => {
                 let lin = LinearInterpolator::new(self.h_fracs.at(i), self.h_fracs.at(j), h_frac);
                 let loges = self.tables[i].log_energy();
                 let logvs = self.tables[i].log_volume();
@@ -137,7 +137,7 @@ impl ConstMetalTables {
                 );
                 cubic_spline_2d(loges, logvs, table.view(), log_energy, log_volume)
             }
-            Idx::OutOfRange => Err("Hydrogen fraction out of range"),
+            IdxLin::OutOfRange => Err("Hydrogen fraction out of range"),
         }
     }
 }
