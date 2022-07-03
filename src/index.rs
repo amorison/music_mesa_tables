@@ -144,9 +144,9 @@ impl Range {
             IdxLin::OutOfRange
         } else {
             let iguess = ((value - self.first) / self.step).floor() as usize;
-            if value == self.at(iguess) {
+            if value.is_close(self.at(iguess)) {
                 IdxLin::Exact(iguess)
-            } else if self.get(iguess + 1).map_or(false, |v| v == value) {
+            } else if self.get(iguess + 1).map_or(false, |v| v.is_close(value)) {
                 IdxLin::Exact(iguess + 1)
             } else {
                 IdxLin::Between(iguess, iguess + 1)
@@ -170,9 +170,9 @@ impl Range {
             SplineStencil::OutOfRange
         } else {
             let iguess = ((value - self.first) / self.step).floor() as usize;
-            if value == self.at(iguess) {
+            if value.is_close(self.at(iguess)) {
                 SplineStencil::Exact { i: iguess, value }
-            } else if self.get(iguess + 1).map_or(false, |v| v == value) {
+            } else if self.get(iguess + 1).map_or(false, |v| v.is_close(value)) {
                 SplineStencil::Exact {
                     i: iguess + 1,
                     value,
