@@ -124,7 +124,13 @@ impl ConstMetalTables {
         }
     }
 
-    pub fn at(&self, h_frac: f64, log_energy: f64, log_volume: f64, var: StateVar) -> Result<f64, &'static str> {
+    pub fn at(
+        &self,
+        h_frac: f64,
+        log_energy: f64,
+        log_volume: f64,
+        var: StateVar,
+    ) -> Result<f64, &'static str> {
         match self.h_fracs.idx_lin(h_frac) {
             IdxLin::Exact(i) => self.tables[i].at(log_energy, log_volume, var),
             IdxLin::Between(i, j) => {
@@ -278,7 +284,8 @@ mod tests {
         let log_density = 8.3537_f64.log10();
         let log_vol = 20.0 + log_density - 0.7 * log_energy;
 
-        let logt_direct = z_eos.at(h_frac, log_energy, log_vol, StateVar::Temperature)
+        let logt_direct = z_eos
+            .at(h_frac, log_energy, log_vol, StateVar::Temperature)
             .expect("requested state in range");
 
         let ve_eos = z_eos
