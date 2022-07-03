@@ -1,4 +1,4 @@
-use crate::is_close::IsClose;
+use crate::{interp::SplineStencil, is_close::IsClose};
 
 #[derive(Copy, Clone)]
 pub struct Range {
@@ -10,12 +10,6 @@ pub struct Range {
 pub enum IdxLin {
     Exact(usize),
     Between(usize, usize),
-    OutOfRange,
-}
-
-pub enum IdxSpline {
-    Exact(usize),
-    Centered(usize, usize, usize, usize),
     OutOfRange,
 }
 
@@ -160,25 +154,40 @@ impl Range {
         }
     }
 
-    pub fn idx_spline(&self, value: f64) -> IdxSpline {
+    pub fn spline_stencil(&self, value: f64) -> SplineStencil {
         let lside = self.at(1);
         let rside = self.at(self.n_values - 2);
         if self.n_values < 4 {
-            IdxSpline::OutOfRange
+            SplineStencil::OutOfRange
         } else if value.is_close(lside) {
-            IdxSpline::Exact(1)
+            SplineStencil::Exact { i: 1, value }
         } else if value.is_close(rside) {
-            IdxSpline::Exact(self.n_values - 2)
+            SplineStencil::Exact {
+                i: self.n_values - 2,
+                value,
+            }
         } else if value < lside || value > rside {
-            IdxSpline::OutOfRange
+            SplineStencil::OutOfRange
         } else {
             let iguess = ((value - self.first) / self.step).floor() as usize;
             if value == self.at(iguess) {
-                IdxSpline::Exact(iguess)
+                SplineStencil::Exact { i: iguess, value }
             } else if self.get(iguess + 1).map_or(false, |v| v == value) {
-                IdxSpline::Exact(iguess + 1)
+                SplineStencil::Exact {
+                    i: iguess + 1,
+                    value,
+                }
             } else {
-                IdxSpline::Centered(iguess - 1, iguess, iguess + 1, iguess + 2)
+                SplineStencil::Centered {
+                    r: iguess - 1..iguess + 3,
+                    xs: [
+                        self.at(iguess - 1),
+                        self.at(iguess),
+                        self.at(iguess + 1),
+                        self.at(iguess + 2),
+                    ],
+                    at: value,
+                }
             }
         }
     }

@@ -1,6 +1,4 @@
-use ndarray::{Array, ArrayBase, ArrayView2, Data, Dimension};
-
-use crate::index::{IdxSpline, Range};
+use ndarray::{Array, ArrayBase, ArrayView1, ArrayView2, Axis, Data, Dimension};
 
 pub struct LinearInterpolator {
     left_coef: f64,
@@ -31,55 +29,67 @@ impl LinearInterpolator {
     }
 }
 
-/// Centered spline interpolator.
-///
-/// This takes 2 known points on each side on the desired interpolation location.
-pub fn cubic_spline(x: [f64; 4], y: [f64; 4], at: f64) -> f64 {
-    let dy_dx_left = (y[2] - y[0]) / (x[2] - x[0]);
-    let dy_dx_right = (y[3] - y[1]) / (x[3] - x[1]);
-    let a = dy_dx_left * (x[2] - x[1]) - (y[2] - y[1]);
-    let b = -dy_dx_right * (x[2] - x[1]) - (y[2] - y[1]);
-    let t = (at - x[1]) / (x[2] - x[1]);
-    (1.0 - t) * y[1] + t * y[2] + t * (1.0 - t) * (a * (1.0 - t) + b * t)
+/// Centered cubic spline interpolator.
+pub enum SplineStencil {
+    Exact {
+        i: usize,
+        value: f64,
+    },
+    Centered {
+        r: std::ops::Range<usize>,
+        xs: [f64; 4],
+        at: f64,
+    },
+    OutOfRange,
+}
+
+impl SplineStencil {
+    fn low_level_spline(x: [f64; 4], y: [f64; 4], at: f64) -> f64 {
+        let dy_dx_left = (y[2] - y[0]) / (x[2] - x[0]);
+        let dy_dx_right = (y[3] - y[1]) / (x[3] - x[1]);
+        let a = dy_dx_left * (x[2] - x[1]) - (y[2] - y[1]);
+        let b = -dy_dx_right * (x[2] - x[1]) - (y[2] - y[1]);
+        let t = (at - x[1]) / (x[2] - x[1]);
+        (1.0 - t) * y[1] + t * y[2] + t * (1.0 - t) * (a * (1.0 - t) + b * t)
+    }
+
+    pub fn apply_to(&self, arr: ArrayView1<'_, f64>) -> Result<f64, &'static str> {
+        match self {
+            SplineStencil::Exact { i, .. } => Ok(arr[*i]),
+            SplineStencil::OutOfRange => Err("out of range"),
+            SplineStencil::Centered { r, xs, at } => {
+                let i = r.start;
+                let y: [f64; 4] = [arr[i], arr[i + 1], arr[i + 2], arr[i + 3]];
+                Ok(Self::low_level_spline(*xs, y, *at))
+            }
+        }
+    }
 }
 
 pub(crate) fn cubic_spline_2d(
-    x: Range,
-    y: Range,
+    x_st: SplineStencil,
+    y_st: SplineStencil,
     z: ArrayView2<'_, f64>,
-    at_x: f64,
-    at_y: f64,
 ) -> Result<f64, &'static str> {
-    match (x.idx_spline(at_x), y.idx_spline(at_y)) {
-        (IdxSpline::OutOfRange, _) | (_, IdxSpline::OutOfRange) => {
+    match (x_st, y_st) {
+        (SplineStencil::OutOfRange, _) | (_, SplineStencil::OutOfRange) => {
             Err("requested position is out of range")
         }
-        (IdxSpline::Exact(i_x), IdxSpline::Exact(i_y)) => Ok(z[[i_x, i_y]]),
-        (IdxSpline::Exact(i_x), IdxSpline::Centered(yl2, yl1, yr1, yr2)) => Ok(cubic_spline(
-            [y.at(yl2), y.at(yl1), y.at(yr1), y.at(yr2)],
-            [z[[i_x, yl2]], z[[i_x, yl1]], z[[i_x, yr1]], z[[i_x, yr2]]],
-            at_y,
-        )),
-        (IdxSpline::Centered(xl2, xl1, xr1, xr2), IdxSpline::Exact(i_y)) => Ok(cubic_spline(
-            [x.at(xl2), x.at(xl1), x.at(xr1), x.at(xr2)],
-            [z[[xl2, i_y]], z[[xl1, i_y]], z[[xr1, i_y]], z[[xr2, i_y]]],
-            at_x,
-        )),
-        (IdxSpline::Centered(xl2, xl1, xr1, xr2), IdxSpline::Centered(yl2, yl1, yr1, yr2)) => {
-            let xs = [x.at(xl2), x.at(xl1), x.at(xr1), x.at(xr2)];
+        (SplineStencil::Exact { i: i_x, .. }, y_st) => y_st.apply_to(z.index_axis(Axis(0), i_x)),
+        (x_st, SplineStencil::Exact { i: i_y, .. }) => x_st.apply_to(z.index_axis(Axis(1), i_y)),
+        (
+            x_st @ SplineStencil::Centered { .. },
+            SplineStencil::Centered {
+                r: y_r,
+                xs: ys,
+                at: at_y,
+            },
+        ) => {
             let mut z_at_ys = [0.0; 4];
-            for (i, iy) in (yl2..=yr2).enumerate() {
-                z_at_ys[i] = cubic_spline(
-                    xs,
-                    [z[[xl2, iy]], z[[xl1, iy]], z[[xr1, iy]], z[[xr2, iy]]],
-                    at_x,
-                );
+            for (i, iy) in y_r.enumerate() {
+                z_at_ys[i] = x_st.apply_to(z.index_axis(Axis(1), iy))?;
             }
-            Ok(cubic_spline(
-                [y.at(yl2), y.at(yl1), y.at(yr1), y.at(yr2)],
-                z_at_ys,
-                at_y,
-            ))
+            Ok(SplineStencil::low_level_spline(ys, z_at_ys, at_y))
         }
     }
 }

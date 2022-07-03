@@ -141,7 +141,11 @@ impl ConstMetalTables {
                     self.tables[i].values().index_axis(Axis(2), var as usize),
                     self.tables[j].values().index_axis(Axis(2), var as usize),
                 );
-                cubic_spline_2d(loges, logvs, table.view(), log_energy, log_volume)
+                cubic_spline_2d(
+                    loges.spline_stencil(log_energy),
+                    logvs.spline_stencil(log_volume),
+                    table.view(),
+                )
             }
             IdxLin::OutOfRange => Err("Hydrogen fraction out of range"),
         }
@@ -229,11 +233,9 @@ impl VolumeEnergyTable {
 
     pub fn at(&self, log_energy: f64, log_volume: f64, var: StateVar) -> Result<f64, &'static str> {
         cubic_spline_2d(
-            self.log_energy,
-            self.log_volume,
+            self.log_energy.spline_stencil(log_energy),
+            self.log_volume.spline_stencil(log_volume),
             self.values().index_axis(Axis(2), var as usize),
-            log_energy,
-            log_volume,
         )
     }
 }
