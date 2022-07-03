@@ -1,6 +1,6 @@
 use ndarray::{Array, ArrayBase, ArrayView2, Data, Dimension};
 
-use crate::index::{IdxLin, Range};
+use crate::index::{IdxSpline, Range};
 
 pub struct LinearInterpolator {
     left_coef: f64,
@@ -50,56 +50,33 @@ pub(crate) fn cubic_spline_2d(
     at_x: f64,
     at_y: f64,
 ) -> Result<f64, &'static str> {
-    match (x.idx_lin(at_x), y.idx_lin(at_y)) {
-        (IdxLin::OutOfRange, _) | (_, IdxLin::OutOfRange) => {
+    match (x.idx_spline(at_x), y.idx_spline(at_y)) {
+        (IdxSpline::OutOfRange, _) | (_, IdxSpline::OutOfRange) => {
             Err("requested position is out of range")
         }
-        (IdxLin::Exact(0), _) | (IdxLin::Between(0, _), _) => Err("requested x is in lower values"),
-        (_, IdxLin::Exact(0)) | (_, IdxLin::Between(0, _)) => Err("requested y is in lower values"),
-        (IdxLin::Exact(n), _) | (IdxLin::Between(_, n), _) if n == x.n_values() - 1 => {
-            Err("requested x is in higher values")
-        }
-        (_, IdxLin::Exact(n)) | (_, IdxLin::Between(_, n)) if n == y.n_values() - 1 => {
-            Err("requested y is in higher values")
-        }
-        (IdxLin::Exact(i_x), IdxLin::Exact(i_y)) => Ok(z[[i_x, i_y]]),
-        (IdxLin::Exact(i_x), IdxLin::Between(i_y, _)) => Ok(cubic_spline(
-            [y.at(i_y - 1), y.at(i_y), y.at(i_y + 1), y.at(i_y + 2)],
-            [
-                z[[i_x, i_y - 1]],
-                z[[i_x, i_y]],
-                z[[i_x, i_y + 1]],
-                z[[i_x, i_y + 2]],
-            ],
+        (IdxSpline::Exact(i_x), IdxSpline::Exact(i_y)) => Ok(z[[i_x, i_y]]),
+        (IdxSpline::Exact(i_x), IdxSpline::Centered(yl2, yl1, yr1, yr2)) => Ok(cubic_spline(
+            [y.at(yl2), y.at(yl1), y.at(yr1), y.at(yr2)],
+            [z[[i_x, yl2]], z[[i_x, yl1]], z[[i_x, yr1]], z[[i_x, yr2]]],
             at_y,
         )),
-        (IdxLin::Between(i_x, _), IdxLin::Exact(i_y)) => Ok(cubic_spline(
-            [x.at(i_x - 1), x.at(i_x), x.at(i_x + 1), x.at(i_x + 2)],
-            [
-                z[[i_x - 1, i_y]],
-                z[[i_x, i_y]],
-                z[[i_x + 1, i_y]],
-                z[[i_x + 2, i_y]],
-            ],
+        (IdxSpline::Centered(xl2, xl1, xr1, xr2), IdxSpline::Exact(i_y)) => Ok(cubic_spline(
+            [x.at(xl2), x.at(xl1), x.at(xr1), x.at(xr2)],
+            [z[[xl2, i_y]], z[[xl1, i_y]], z[[xr1, i_y]], z[[xr2, i_y]]],
             at_x,
         )),
-        (IdxLin::Between(i_x, _), IdxLin::Between(i_y, _)) => {
-            let xs = [x.at(i_x - 1), x.at(i_x), x.at(i_x + 1), x.at(i_x + 2)];
+        (IdxSpline::Centered(xl2, xl1, xr1, xr2), IdxSpline::Centered(yl2, yl1, yr1, yr2)) => {
+            let xs = [x.at(xl2), x.at(xl1), x.at(xr1), x.at(xr2)];
             let mut z_at_ys = [0.0; 4];
-            for (i, iy) in (i_y - 1..=i_y + 2).enumerate() {
+            for (i, iy) in (yl2..=yr2).enumerate() {
                 z_at_ys[i] = cubic_spline(
                     xs,
-                    [
-                        z[[i_x - 1, iy]],
-                        z[[i_x, iy]],
-                        z[[i_x + 1, iy]],
-                        z[[i_x + 2, iy]],
-                    ],
+                    [z[[xl2, iy]], z[[xl1, iy]], z[[xr1, iy]], z[[xr2, iy]]],
                     at_x,
                 );
             }
             Ok(cubic_spline(
-                [y.at(i_y - 1), y.at(i_y), y.at(i_y + 1), y.at(i_y + 2)],
+                [y.at(yl2), y.at(yl1), y.at(yr1), y.at(yr2)],
                 z_at_ys,
                 at_y,
             ))

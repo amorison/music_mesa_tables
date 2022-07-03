@@ -13,6 +13,12 @@ pub enum IdxLin {
     OutOfRange,
 }
 
+pub enum IdxSpline {
+    Exact(usize),
+    Centered(usize, usize, usize, usize),
+    OutOfRange,
+}
+
 pub struct RangeIterator {
     range: Range,
     idx: usize,
@@ -150,6 +156,29 @@ impl Range {
                 IdxLin::Exact(iguess + 1)
             } else {
                 IdxLin::Between(iguess, iguess + 1)
+            }
+        }
+    }
+
+    pub fn idx_spline(&self, value: f64) -> IdxSpline {
+        let lside = self.at(1);
+        let rside = self.at(self.n_values - 2);
+        if self.n_values < 4 {
+            IdxSpline::OutOfRange
+        } else if value.is_close(lside) {
+            IdxSpline::Exact(1)
+        } else if value.is_close(rside) {
+            IdxSpline::Exact(self.n_values - 2)
+        } else if value < lside || value > rside {
+            IdxSpline::OutOfRange
+        } else {
+            let iguess = ((value - self.first) / self.step).floor() as usize;
+            if value == self.at(iguess) {
+                IdxSpline::Exact(iguess)
+            } else if self.get(iguess + 1).map_or(false, |v| v == value) {
+                IdxSpline::Exact(iguess + 1)
+            } else {
+                IdxSpline::Centered(iguess - 1, iguess, iguess + 1, iguess + 2)
             }
         }
     }
