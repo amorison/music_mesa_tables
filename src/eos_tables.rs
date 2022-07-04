@@ -269,7 +269,7 @@ mod tests {
             .at(log_energy, log_volume, StateVar::Density)
             .expect("point is on the grid");
         let fit_density = log_volume + 0.7 * log_energy - 20.0;
-        assert!((log_density - fit_density) / fit_density < 1e-2);
+        assert!(log_density.is_close(fit_density));
     }
 
     #[test]

@@ -109,6 +109,7 @@ mod tests {
 
     use crate::{
         eos_tables::{AllTables, StateVar},
+        is_close::IsClose,
         state::CstMetalState,
     };
 
@@ -151,7 +152,7 @@ mod tests {
             .mapv_into(|logd| 10.0_f64.powf(logd));
         assert!(Zip::from(&density)
             .and(&d_comp)
-            .all(|&a, &b| (a - b).abs() / a < 5e-2));
+            .all(|&a, &b| (a / b).is_close(1.0)));
 
         density.fill(10.3);
         energy.fill(4.5e15);

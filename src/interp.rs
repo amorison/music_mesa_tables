@@ -29,6 +29,15 @@ impl LinearInterpolator {
     }
 }
 
+fn low_level_spline(x: [f64; 4], y: [f64; 4], at: f64) -> f64 {
+    let dy_dx_left = (y[2] - y[0]) / (x[2] - x[0]);
+    let dy_dx_right = (y[3] - y[1]) / (x[3] - x[1]);
+    let a = dy_dx_left * (x[2] - x[1]) - (y[2] - y[1]);
+    let b = -dy_dx_right * (x[2] - x[1]) + (y[2] - y[1]);
+    let t = (at - x[1]) / (x[2] - x[1]);
+    (1.0 - t) * y[1] + t * y[2] + t * (1.0 - t) * (a * (1.0 - t) + b * t)
+}
+
 /// Centered cubic spline interpolator.
 pub enum SplineStencil {
     Exact {
@@ -43,22 +52,13 @@ pub enum SplineStencil {
 }
 
 impl SplineStencil {
-    fn low_level_spline(x: [f64; 4], y: [f64; 4], at: f64) -> f64 {
-        let dy_dx_left = (y[2] - y[0]) / (x[2] - x[0]);
-        let dy_dx_right = (y[3] - y[1]) / (x[3] - x[1]);
-        let a = dy_dx_left * (x[2] - x[1]) - (y[2] - y[1]);
-        let b = -dy_dx_right * (x[2] - x[1]) - (y[2] - y[1]);
-        let t = (at - x[1]) / (x[2] - x[1]);
-        (1.0 - t) * y[1] + t * y[2] + t * (1.0 - t) * (a * (1.0 - t) + b * t)
-    }
-
     pub fn apply_to(&self, arr: ArrayView1<'_, f64>) -> f64 {
         match self {
             SplineStencil::Exact { i, .. } => arr[*i],
             SplineStencil::Centered { r, xs, at } => {
                 let i = r.start;
                 let y: [f64; 4] = [arr[i], arr[i + 1], arr[i + 2], arr[i + 3]];
-                Self::low_level_spline(*xs, y, *at)
+                low_level_spline(*xs, y, *at)
             }
         }
     }
@@ -84,7 +84,28 @@ pub(crate) fn cubic_spline_2d(
             for (i, iy) in y_r.enumerate() {
                 z_at_ys[i] = x_st.apply_to(z.index_axis(Axis(1), iy));
             }
-            SplineStencil::low_level_spline(ys, z_at_ys, at_y)
+            low_level_spline(ys, z_at_ys, at_y)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::is_close::IsClose;
+
+    use super::low_level_spline;
+
+    fn low_level_spline_analytic<F: Fn(f64) -> f64>(f: F) {
+        let xs = [-1., 0., 1., 2.];
+        let ys = xs.map(&f);
+        assert!((0..=10)
+            .map(|i| i as f64 / 10.0)
+            .all(|at| { dbg!(low_level_spline(xs, ys, at)).is_close(dbg!(f(at))) }));
+    }
+
+    #[test]
+    fn low_level_spline_quad_funcs() {
+        low_level_spline_analytic(|x| 3.0 * x * x - 2.0 * x + 5.0);
+        low_level_spline_analytic(|x| 42.0 * x - 7.0);
     }
 }
