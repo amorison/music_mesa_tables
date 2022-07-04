@@ -119,7 +119,7 @@ impl ConstMetalTables {
                 let left = &self.tables[i];
                 let right = &self.tables[j];
                 let lin = LinearInterpolator::new(self.h_fracs.at(i), self.h_fracs.at(j), h_frac);
-                Ok(left.interp_with(&right, &lin))
+                Ok(left.interp_with(right, &lin))
             }
         }
     }
