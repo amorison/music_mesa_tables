@@ -4,3 +4,4 @@ mod index;
 mod interp;
 mod is_close;
 mod raw_tables;
+pub mod state;
