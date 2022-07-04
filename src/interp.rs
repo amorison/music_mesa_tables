@@ -1,4 +1,4 @@
-use ndarray::{Array, ArrayBase, ArrayView1, ArrayView2, Axis, Data, Dimension};
+use ndarray::{Array, ArrayBase, ArrayView, ArrayView1, ArrayView2, Axis, Data, Dimension};
 
 pub struct LinearInterpolator {
     left_coef: f64,
@@ -59,6 +59,30 @@ impl SplineStencil {
                 let i = r.start;
                 let y: [f64; 4] = [arr[i], arr[i + 1], arr[i + 2], arr[i + 3]];
                 low_level_spline(*xs, y, *at)
+            }
+        }
+    }
+
+    pub(crate) fn slice_view<D: Dimension>(
+        &self,
+        axis: Axis,
+        arr: &mut ArrayView<'_, f64, D>,
+    ) -> Self {
+        match self {
+            SplineStencil::Exact { i, value } => {
+                arr.slice_axis_inplace(axis, (*i..*i + 1).into());
+                SplineStencil::Exact {
+                    i: 0,
+                    value: *value,
+                }
+            }
+            SplineStencil::Centered { r, xs, at } => {
+                arr.slice_axis_inplace(axis, r.clone().into());
+                SplineStencil::Centered {
+                    r: 0..4,
+                    xs: *xs,
+                    at: *at,
+                }
             }
         }
     }

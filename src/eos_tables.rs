@@ -135,17 +135,23 @@ impl ConstMetalTables {
             IdxLin::Exact(i) => self.tables[i].at(log_energy, log_volume, var),
             IdxLin::Between(i, j) => {
                 let lin = LinearInterpolator::new(self.h_fracs.at(i), self.h_fracs.at(j), h_frac);
-                let loges = self.tables[i].log_energy();
-                let logvs = self.tables[i].log_volume();
+                let loge_stencil = self.tables[i].log_energy().spline_stencil(log_energy)?;
+                let logv_stencil = self.tables[i].log_volume().spline_stencil(log_volume)?;
+
+                let mut ltable = self.tables[i].values();
+                let mut rtable = self.tables[j].values();
+
+                // take only the elements of the tables that are needed for the
+                // spline interpolation.
+                loge_stencil.slice_view(Axis(0), &mut ltable);
+                let loge_stencil = loge_stencil.slice_view(Axis(0), &mut rtable);
+                logv_stencil.slice_view(Axis(1), &mut ltable);
+                let logv_stencil = logv_stencil.slice_view(Axis(1), &mut rtable);
                 let table = lin.interp(
-                    self.tables[i].values().index_axis(Axis(2), var as usize),
-                    self.tables[j].values().index_axis(Axis(2), var as usize),
+                    dbg!(ltable.index_axis(Axis(2), var as usize)),
+                    dbg!(rtable.index_axis(Axis(2), var as usize)),
                 );
-                Ok(cubic_spline_2d(
-                    loges.spline_stencil(log_energy)?,
-                    logvs.spline_stencil(log_volume)?,
-                    table.view(),
-                ))
+                Ok(cubic_spline_2d(loge_stencil, logv_stencil, table.view()))
             }
         }
     }
