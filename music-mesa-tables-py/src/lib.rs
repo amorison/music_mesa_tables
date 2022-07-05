@@ -1,5 +1,5 @@
 use music_mesa_tables::{eos_tables, state};
-use numpy::{Ix1, PyArray1};
+use numpy::{PyArrayDyn, IxDyn};
 use pyo3::prelude::*;
 
 #[pyclass]
@@ -39,7 +39,7 @@ impl From<StateVar> for eos_tables::StateVar {
 }
 
 #[pyclass]
-struct CstCompoState(state::CstCompoState<Ix1>);
+struct CstCompoState(state::CstCompoState<IxDyn>);
 
 #[pymethods]
 impl CstCompoState {
@@ -47,8 +47,8 @@ impl CstCompoState {
     fn new(
         metallicity: f64,
         he_frac: f64,
-        density: &PyArray1<f64>,
-        energy: &PyArray1<f64>,
+        density: &PyArrayDyn<f64>,
+        energy: &PyArrayDyn<f64>,
     ) -> Self {
         let density = density.readonly();
         let energy = energy.readonly();
@@ -57,29 +57,29 @@ impl CstCompoState {
         Self(state)
     }
 
-    fn set_state(&mut self, density: &PyArray1<f64>, energy: &PyArray1<f64>) {
+    fn set_state(&mut self, density: &PyArrayDyn<f64>, energy: &PyArrayDyn<f64>) {
         let density = density.readonly();
         let energy = energy.readonly();
         self.0.set_state(density.as_array(), energy.as_array());
     }
 
-    fn compute<'py>(&self, py: Python<'py>, var: StateVar) -> &'py PyArray1<f64> {
+    fn compute<'py>(&self, py: Python<'py>, var: StateVar) -> &'py PyArrayDyn<f64> {
         let out = self.0.compute(var.into());
-        PyArray1::from_owned_array(py, out)
+        PyArrayDyn::from_owned_array(py, out)
     }
 }
 
 #[pyclass]
-struct CstMetalState(state::CstMetalState<Ix1>);
+struct CstMetalState(state::CstMetalState<IxDyn>);
 
 #[pymethods]
 impl CstMetalState {
     #[new]
     fn new(
         metallicity: f64,
-        he_frac: &PyArray1<f64>,
-        density: &PyArray1<f64>,
-        energy: &PyArray1<f64>,
+        he_frac: &PyArrayDyn<f64>,
+        density: &PyArrayDyn<f64>,
+        energy: &PyArrayDyn<f64>,
     ) -> Self {
         let density = density.readonly();
         let energy = energy.readonly();
@@ -95,9 +95,9 @@ impl CstMetalState {
 
     fn set_state(
         &mut self,
-        he_frac: &PyArray1<f64>,
-        density: &PyArray1<f64>,
-        energy: &PyArray1<f64>,
+        he_frac: &PyArrayDyn<f64>,
+        density: &PyArrayDyn<f64>,
+        energy: &PyArrayDyn<f64>,
     ) {
         let he_frac = he_frac.readonly();
         let density = density.readonly();
@@ -106,9 +106,9 @@ impl CstMetalState {
             .set_state(he_frac.as_array(), density.as_array(), energy.as_array());
     }
 
-    fn compute<'py>(&self, py: Python<'py>, var: StateVar) -> &'py PyArray1<f64> {
+    fn compute<'py>(&self, py: Python<'py>, var: StateVar) -> &'py PyArrayDyn<f64> {
         let out = self.0.compute(var.into());
-        PyArray1::from_owned_array(py, out)
+        PyArrayDyn::from_owned_array(py, out)
     }
 }
 
