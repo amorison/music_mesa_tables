@@ -148,8 +148,8 @@ impl ConstMetalTables {
                 logv_stencil.slice_view(Axis(1), &mut ltable);
                 let logv_stencil = logv_stencil.slice_view(Axis(1), &mut rtable);
                 let table = lin.interp(
-                    dbg!(ltable.index_axis(Axis(2), var as usize)),
-                    dbg!(rtable.index_axis(Axis(2), var as usize)),
+                    ltable.index_axis(Axis(2), var as usize),
+                    rtable.index_axis(Axis(2), var as usize),
                 );
                 Ok(cubic_spline_2d(loge_stencil, logv_stencil, table.view()))
             }
