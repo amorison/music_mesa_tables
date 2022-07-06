@@ -12,7 +12,7 @@ pub(crate) struct MetalRawTables {
 
 pub(crate) struct RawTable(pub &'static [u8]);
 
-pub(crate) static RAW_TABLES: AllRawTables = AllRawTables {
+pub(crate) const RAW_TABLES: AllRawTables = AllRawTables {
     metallicities: Range::new(0.0, 0.02, 3),
     tables: &[
         MetalRawTables {
