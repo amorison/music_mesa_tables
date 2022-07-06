@@ -10,4 +10,4 @@ crate-type = ["cdylib"]
 [dependencies]
 music_mesa_tables = { path = "..", version = "0.1.0" }
 numpy = "0.16.2"
-pyo3 = { version = "0.16.5", features = ["extension-module"] }
+pyo3 = { version = "0.16.5", features = ["extension-module", "abi3-py37"] }
