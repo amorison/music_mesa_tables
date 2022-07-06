@@ -2,6 +2,7 @@ use music_mesa_tables::{eos_tables, state};
 use numpy::{PyArrayDyn, IxDyn};
 use pyo3::prelude::*;
 
+/// Represent a state variable that can be computed from MESA tables.
 #[pyclass]
 #[derive(Copy, Clone)]
 enum StateVar {
@@ -38,6 +39,7 @@ impl From<StateVar> for eos_tables::StateVar {
     }
 }
 
+/// A state at constant metallicity and helium fraction.
 #[pyclass]
 struct CstCompoState(state::CstCompoState<IxDyn>);
 
@@ -57,18 +59,23 @@ impl CstCompoState {
         Self(state)
     }
 
+    /// Change the density and internal energy of the state, keeping the same composition.
+    /// This is more efficient than recreating a new state with the same composition
+    /// since this reuses the tables interpolated at the desired composition.
     fn set_state(&mut self, density: &PyArrayDyn<f64>, energy: &PyArrayDyn<f64>) {
         let density = density.readonly();
         let energy = energy.readonly();
         self.0.set_state(density.as_array(), energy.as_array());
     }
 
+    /// Compute the requested [`StateVar`] for this state.
     fn compute<'py>(&self, py: Python<'py>, var: StateVar) -> &'py PyArrayDyn<f64> {
         let out = self.0.compute(var.into());
         PyArrayDyn::from_owned_array(py, out)
     }
 }
 
+/// A state at constant metallicity.
 #[pyclass]
 struct CstMetalState(state::CstMetalState<IxDyn>);
 
@@ -93,6 +100,10 @@ impl CstMetalState {
         Self(state)
     }
 
+    /// Change the helium fraction, density, and internal energy of the state,
+    /// keeping the same metallicity. This is more efficient than recreating a
+    /// new state with the same metallicity since this reuses the tables
+    /// interpolated at the desired metallicity.
     fn set_state(
         &mut self,
         he_frac: &PyArrayDyn<f64>,
@@ -106,12 +117,14 @@ impl CstMetalState {
             .set_state(he_frac.as_array(), density.as_array(), energy.as_array());
     }
 
+    /// Compute the requested [`StateVar`] for this state.
     fn compute<'py>(&self, py: Python<'py>, var: StateVar) -> &'py PyArrayDyn<f64> {
         let out = self.0.compute(var.into());
         PyArrayDyn::from_owned_array(py, out)
     }
 }
 
+/// This exposes interpolation routines of MESA tables.
 #[pymodule]
 fn music_mesa_tables(_py: Python<'_>, pymod: &PyModule) -> PyResult<()> {
     pymod.add_class::<CstCompoState>()?;
