@@ -6,15 +6,15 @@ use pyo3::prelude::*;
 #[pyclass]
 #[derive(Copy, Clone)]
 enum StateVar {
-    Density,
-    Pressure,
-    Pgas,
-    Temperature,
+    LogDensity,
+    LogPressure,
+    LogPgas,
+    LogTemperature,
     DPresDDensEcst,
     DPresDEnerDcst,
     DTempDDensEcst,
     DTempDEnerDcst,
-    Entropy,
+    LogEntropy,
     DTempDPresScst,
     Gamma1,
     Gamma,
@@ -23,15 +23,15 @@ enum StateVar {
 impl From<StateVar> for eos_tables::StateVar {
     fn from(var: StateVar) -> Self {
         match var {
-            StateVar::Density => eos_tables::StateVar::Density,
-            StateVar::Pressure => eos_tables::StateVar::Pressure,
-            StateVar::Pgas => eos_tables::StateVar::Pgas,
-            StateVar::Temperature => eos_tables::StateVar::Temperature,
+            StateVar::LogDensity => eos_tables::StateVar::LogDensity,
+            StateVar::LogPressure => eos_tables::StateVar::LogPressure,
+            StateVar::LogPgas => eos_tables::StateVar::LogPgas,
+            StateVar::LogTemperature => eos_tables::StateVar::LogTemperature,
             StateVar::DPresDDensEcst => eos_tables::StateVar::DPresDDensEcst,
             StateVar::DPresDEnerDcst => eos_tables::StateVar::DPresDEnerDcst,
             StateVar::DTempDDensEcst => eos_tables::StateVar::DTempDDensEcst,
             StateVar::DTempDEnerDcst => eos_tables::StateVar::DTempDEnerDcst,
-            StateVar::Entropy => eos_tables::StateVar::Entropy,
+            StateVar::LogEntropy => eos_tables::StateVar::LogEntropy,
             StateVar::DTempDPresScst => eos_tables::StateVar::DTempDPresScst,
             StateVar::Gamma1 => eos_tables::StateVar::Gamma1,
             StateVar::Gamma => eos_tables::StateVar::Gamma,

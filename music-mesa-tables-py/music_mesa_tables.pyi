@@ -4,15 +4,15 @@ import numpy as np
 
 
 class StateVar(Enum):
-    Density = auto()
-    Pressure = auto()
-    Pgas = auto()
-    Temperature = auto()
+    LogDensity = auto()
+    LogPressure = auto()
+    LogPgas = auto()
+    LogTemperature = auto()
     DPresDDensEcst = auto()
     DPresDEnerDcst = auto()
     DTempDDensEcst = auto()
     DTempDEnerDcst = auto()
-    Entropy = auto()
+    LogEntropy = auto()
     DTempDPresScst = auto()
     Gamma1 = auto()
     Gamma = auto()

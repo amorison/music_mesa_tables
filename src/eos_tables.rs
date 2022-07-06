@@ -10,19 +10,19 @@ use crate::{
     raw_tables::eos::{AllRawTables, MetalRawTables, RawTable, RAW_TABLES},
 };
 
-/// State variable labels, all quantities except Gamma1 and Gamma are logarithmic.
+/// State variable labels.
 #[derive(Copy, Clone)]
 #[repr(usize)]
 pub enum StateVar {
-    Density,
-    Pressure,
-    Pgas,
-    Temperature,
+    LogDensity,
+    LogPressure,
+    LogPgas,
+    LogTemperature,
     DPresDDensEcst,
     DPresDEnerDcst,
     DTempDDensEcst,
     DTempDEnerDcst,
-    Entropy,
+    LogEntropy,
     DTempDPresScst,
     Gamma1,
     Gamma,
