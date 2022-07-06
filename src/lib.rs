@@ -1,3 +1,5 @@
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub mod eos_tables;
 mod fort_unfmt;
 mod index;

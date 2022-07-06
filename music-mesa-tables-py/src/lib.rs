@@ -1,6 +1,7 @@
 use music_mesa_tables::{eos_tables, state};
 use numpy::{PyArrayDyn, IxDyn};
 use pyo3::prelude::*;
+use pyo3::types::PyString;
 
 /// Represent a state variable that can be computed from MESA tables.
 #[pyclass]
@@ -124,11 +125,18 @@ impl CstMetalState {
     }
 }
 
+/// Get the version number of the MESA tables backend library.
+#[pyfunction]
+fn get_mesa_tables_version<'py>(py: Python<'py>) -> &'py PyString {
+    PyString::new(py, music_mesa_tables::VERSION)
+}
+
 /// This exposes interpolation routines of MESA tables.
 #[pymodule]
 fn music_mesa_tables(_py: Python<'_>, pymod: &PyModule) -> PyResult<()> {
     pymod.add_class::<CstCompoState>()?;
     pymod.add_class::<CstMetalState>()?;
     pymod.add_class::<StateVar>()?;
+    pymod.add_function(wrap_pyfunction!(get_mesa_tables_version, pymod)?)?;
     Ok(())
 }
