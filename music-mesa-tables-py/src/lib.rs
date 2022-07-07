@@ -1,5 +1,5 @@
 use music_mesa_tables::{eos_tables, state};
-use numpy::{PyArrayDyn, IxDyn};
+use numpy::{IxDyn, PyArrayDyn};
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 
