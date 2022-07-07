@@ -143,7 +143,7 @@ mod tests {
         let energy = arr1(&[5.7e14, 4.5e15, 6.7e16]);
         let state = CstCompoState::new(0.02, 0.42, density.view(), energy.view());
         let d_comp = state
-            .compute(StateVar::Density)
+            .compute(StateVar::LogDensity)
             .mapv_into(|logd| 10.0_f64.powf(logd));
         assert!(Zip::from(&density)
             .and(&d_comp)
@@ -157,7 +157,7 @@ mod tests {
         let mut energy = arr1(&[5.7e14, 4.5e15, 6.7e16]);
         let mut state = CstMetalState::new(0.02, he_frac.view(), density.view(), energy.view());
         let d_comp = state
-            .compute(StateVar::Density)
+            .compute(StateVar::LogDensity)
             .mapv_into(|logd| 10.0_f64.powf(logd));
         assert!(Zip::from(&density)
             .and(&d_comp)
@@ -166,7 +166,7 @@ mod tests {
         density.fill(10.3);
         energy.fill(4.5e15);
         state.set_state(he_frac.view(), density.view(), energy.view());
-        let logt = state.compute(StateVar::Temperature);
+        let logt = state.compute(StateVar::LogTemperature);
         assert!(((logt[0] + logt[2]) / 2.0 - logt[1]) / logt[1] < 1e-4);
     }
 }

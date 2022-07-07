@@ -272,7 +272,7 @@ mod tests {
         let log_energy = 2.24e15_f64.log10();
         let log_volume = 1.32e8_f64.log10();
         let log_density = ve_eos
-            .at(log_energy, log_volume, StateVar::Density)
+            .at(log_energy, log_volume, StateVar::LogDensity)
             .expect("point is on the grid");
         let fit_density = log_volume + 0.7 * log_energy - 20.0;
         assert!(log_density.is_close(fit_density));
@@ -289,14 +289,14 @@ mod tests {
         let log_vol = 20.0 + log_density - 0.7 * log_energy;
 
         let logt_direct = z_eos
-            .at(h_frac, log_energy, log_vol, StateVar::Temperature)
+            .at(h_frac, log_energy, log_vol, StateVar::LogTemperature)
             .expect("requested state in range");
 
         let ve_eos = z_eos
             .take_at_h_frac(h_frac)
             .expect("hydrogen fraction is in range");
         let logt_full_interp = ve_eos
-            .at(log_energy, log_vol, StateVar::Temperature)
+            .at(log_energy, log_vol, StateVar::LogTemperature)
             .expect("requested state in range");
 
         assert!(logt_direct.is_close(logt_full_interp))
