@@ -1,4 +1,7 @@
-use crate::{interp::SplineStencil, is_close::IsClose};
+use crate::{
+    interp::{LinearInterpolator, LinearStencil, SplineStencil},
+    is_close::IsClose,
+};
 use thiserror::Error;
 
 #[derive(Copy, Clone)]
@@ -167,6 +170,17 @@ impl Range {
             } else {
                 Ok(IdxLin::Between(iguess, iguess + 1))
             }
+        }
+    }
+
+    pub fn linear_stencil(&self, value: f64) -> Result<LinearStencil, OutOfBoundsError> {
+        match self.idx_lin(value)? {
+            IdxLin::Exact(i) => Ok(LinearStencil::Exact { i, value }),
+            IdxLin::Between(ileft, iright) => Ok(LinearStencil::Between {
+                ileft,
+                iright,
+                lin: LinearInterpolator::new(self.at(iright), self.at(ileft), value),
+            }),
         }
     }
 

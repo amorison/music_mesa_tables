@@ -1,5 +1,6 @@
 use ndarray::{Array, ArrayBase, ArrayView, ArrayView1, ArrayView2, Axis, Data, Dimension};
 
+#[derive(Copy, Clone)]
 pub struct LinearInterpolator {
     left_coef: f64,
 }
@@ -10,6 +11,10 @@ impl LinearInterpolator {
         assert!(at > left_anchor && at < right_anchor);
         let left_coef = (right_anchor - at) / (right_anchor - left_anchor);
         Self { left_coef }
+    }
+
+    pub fn interp_scalar(&self, left: f64, right: f64) -> f64 {
+        left * self.left_coef + right * (1.0 - self.left_coef)
     }
 
     pub fn interp<D, S1, S2>(
@@ -26,6 +31,53 @@ impl LinearInterpolator {
         left *= self.left_coef;
         left.scaled_add(1.0 - self.left_coef, &right);
         left
+    }
+}
+
+pub enum LinearStencil {
+    Exact {
+        i: usize,
+        value: f64,
+    },
+    Between {
+        ileft: usize,
+        iright: usize,
+        lin: LinearInterpolator,
+    },
+}
+
+impl LinearStencil {
+    pub fn apply_to(&self, arr: ArrayView1<'_, f64>) -> f64 {
+        match self {
+            LinearStencil::Exact { i, .. } => arr[*i],
+            LinearStencil::Between { ileft, iright, lin } => {
+                lin.interp_scalar(arr[*ileft], arr[*iright])
+            }
+        }
+    }
+
+    pub(crate) fn slice_view<D: Dimension>(
+        &self,
+        axis: Axis,
+        arr: &mut ArrayView<'_, f64, D>,
+    ) -> Self {
+        match self {
+            LinearStencil::Exact { i, value } => {
+                arr.slice_axis_inplace(axis, (*i..*i + 1).into());
+                LinearStencil::Exact {
+                    i: 0,
+                    value: *value,
+                }
+            }
+            LinearStencil::Between { ileft, iright, lin } => {
+                arr.slice_axis_inplace(axis, (*ileft..*iright).into());
+                LinearStencil::Between {
+                    ileft: 0,
+                    iright: 1,
+                    lin: *lin,
+                }
+            }
+        }
     }
 }
 
@@ -84,6 +136,29 @@ impl SplineStencil {
                     at: *at,
                 }
             }
+        }
+    }
+}
+
+pub(crate) fn lin_interp_2d(
+    x_st: LinearStencil,
+    y_st: LinearStencil,
+    z: ArrayView2<'_, f64>,
+) -> f64 {
+    match (x_st, y_st) {
+        (LinearStencil::Exact { i: i_x, .. }, y_st) => y_st.apply_to(z.index_axis(Axis(0), i_x)),
+        (x_st, LinearStencil::Exact { i: i_y, .. }) => x_st.apply_to(z.index_axis(Axis(1), i_y)),
+        (
+            x_st @ LinearStencil::Between { .. },
+            LinearStencil::Between {
+                ileft: iyl,
+                iright: iyr,
+                lin: ylin,
+            },
+        ) => {
+            let z_at_iyl = x_st.apply_to(z.index_axis(Axis(1), iyl));
+            let z_at_iyr = x_st.apply_to(z.index_axis(Axis(1), iyr));
+            ylin.interp_scalar(z_at_iyl, z_at_iyr)
         }
     }
 }

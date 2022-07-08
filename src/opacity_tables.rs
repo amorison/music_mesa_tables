@@ -1,11 +1,11 @@
 use std::io::{self, Read};
 
-use ndarray::{s, Array2, Array3, Array4, Axis};
+use ndarray::{s, Array2, Array3, Array4, ArrayView2, ArrayView3, Axis};
 
 use crate::{
     fort_unfmt::read_fort_record,
     index::{IdxLin, OutOfBoundsError, Range},
-    interp::LinearInterpolator,
+    interp::{lin_interp_2d, LinearInterpolator, LinearStencil},
     raw_tables::opacity::{RawOpacityTable, RAW_TABLES},
 };
 
@@ -131,13 +131,35 @@ impl ConstMetalTables {
         }
     }
 
+    pub fn values(&self) -> ArrayView3<f64> {
+        self.values.view()
+    }
+
     pub fn at(
         &self,
         h_frac: f64,
         log_temperature: f64,
         log_r: f64,
     ) -> Result<f64, OutOfBoundsError> {
-        todo!()
+        let logt_st = self.log_temperature.linear_stencil(log_temperature)?;
+        let logr_st = self.log_r.linear_stencil(log_r)?;
+        match self.h_fracs.linear_stencil(h_frac)? {
+            LinearStencil::Exact { i, .. } => Ok(lin_interp_2d(
+                logt_st,
+                logr_st,
+                self.values().index_axis_move(Axis(0), i),
+            )),
+            LinearStencil::Between { ileft, iright, lin } => {
+                let mut ltable = self.values().index_axis_move(Axis(0), ileft);
+                let mut rtable = self.values().index_axis_move(Axis(0), iright);
+                logt_st.slice_view(Axis(0), &mut ltable);
+                let logt_st = logt_st.slice_view(Axis(0), &mut rtable);
+                logr_st.slice_view(Axis(1), &mut ltable);
+                let logr_st = logr_st.slice_view(Axis(1), &mut rtable);
+                let table = lin.interp(ltable, rtable);
+                Ok(lin_interp_2d(logt_st, logr_st, table.view()))
+            }
+        }
     }
 }
 
@@ -149,52 +171,15 @@ pub struct RTempTable {
 }
 
 impl RTempTable {
+    pub fn values(&self) -> ArrayView2<f64> {
+        self.values.view()
+    }
+
     pub fn at(&self, log_temperature: f64, log_r: f64) -> Result<f64, OutOfBoundsError> {
-        match (
-            self.log_temperature.idx_lin(log_temperature)?,
-            self.log_r.idx_lin(log_r)?,
-        ) {
-            (IdxLin::Exact(it), IdxLin::Exact(ir)) => Ok(self.values[[it, ir]]),
-            (IdxLin::Between(it, itp), IdxLin::Exact(ir)) => {
-                let lin = LinearInterpolator::new(
-                    self.log_temperature.at(it),
-                    self.log_temperature.at(itp),
-                    log_temperature,
-                );
-                let val = lin.interp(
-                    self.values.slice(s![it, ir..ir + 1]),
-                    self.values.slice(s![itp, ir..ir + 1]),
-                );
-                Ok(val[0])
-            }
-            (IdxLin::Exact(it), IdxLin::Between(ir, irp)) => {
-                let lin =
-                    LinearInterpolator::new(self.log_r.at(ir), self.log_temperature.at(irp), log_r);
-                let val = lin.interp(
-                    self.values.slice(s![it..it + 1, ir]),
-                    self.values.slice(s![it..it + 1, irp]),
-                );
-                Ok(val[0])
-            }
-            (IdxLin::Between(it, itp), IdxLin::Between(ir, irp)) => {
-                let lint = LinearInterpolator::new(
-                    self.log_temperature.at(it),
-                    self.log_temperature.at(itp),
-                    log_temperature,
-                );
-                let linr =
-                    LinearInterpolator::new(self.log_r.at(ir), self.log_temperature.at(irp), log_r);
-                let at_it = linr.interp(
-                    self.values.slice(s![it..it + 1, ir]),
-                    self.values.slice(s![it..it + 1, irp]),
-                );
-                let at_itp = linr.interp(
-                    self.values.slice(s![itp..itp + 1, ir]),
-                    self.values.slice(s![itp..itp + 1, irp]),
-                );
-                let val = lint.interp(at_it, at_itp);
-                Ok(val[0])
-            }
-        }
+        Ok(lin_interp_2d(
+            self.log_temperature.linear_stencil(log_temperature)?,
+            self.log_r.linear_stencil(log_r)?,
+            self.values(),
+        ))
     }
 }
