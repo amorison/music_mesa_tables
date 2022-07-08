@@ -127,7 +127,7 @@ impl CstMetalState {
 
 /// Get the version number of the MESA tables backend library.
 #[pyfunction]
-fn get_mesa_tables_version<'py>(py: Python<'py>) -> &'py PyString {
+fn get_mesa_tables_version(py: Python<'_>) -> &PyString {
     PyString::new(py, music_mesa_tables::VERSION)
 }
 
