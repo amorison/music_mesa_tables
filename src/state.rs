@@ -3,20 +3,24 @@ use ndarray::{Array, ArrayView, Dimension, Zip};
 use crate::eos_tables::{AllTables, ConstMetalTables, StateVar, VolumeEnergyTable};
 
 pub struct CstCompoState<D: Dimension> {
+    metallicity: f64,
+    he_frac: f64,
+    log_density: Array<f64, D>,
     log_volume: Array<f64, D>,
     log_energy: Array<f64, D>,
     table: VolumeEnergyTable,
 }
 
-fn from_de_to_logve<D: Dimension>(
+fn from_de_to_logdve<D: Dimension>(
     density: ArrayView<'_, f64, D>,
     energy: ArrayView<'_, f64, D>,
-) -> (Array<f64, D>, Array<f64, D>) {
+) -> (Array<f64, D>, Array<f64, D>, Array<f64, D>) {
+    let log_density = density.mapv(f64::log10);
     let log_energy = energy.mapv(f64::log10);
     let log_volume = Zip::from(&log_energy)
-        .and(density)
-        .map_collect(|&loge, d| 20.0 + d.log10() - 0.7 * loge);
-    (log_volume, log_energy)
+        .and(&log_density)
+        .map_collect(|&loge, &logd| 20.0 + logd - 0.7 * loge);
+    (log_density, log_volume, log_energy)
 }
 
 impl<D: Dimension> CstCompoState<D> {
@@ -31,17 +35,22 @@ impl<D: Dimension> CstCompoState<D> {
             .expect("metallicity is in range")
             .take_at_h_frac(1.0 - he_frac - metallicity)
             .expect("He fraction is in range");
-        Self::with_table(table, density, energy)
+        Self::with_table(table, metallicity, he_frac, density, energy)
     }
 
     pub fn with_table(
         table: VolumeEnergyTable,
+        metallicity: f64,
+        he_frac: f64,
         density: ArrayView<'_, f64, D>,
         energy: ArrayView<'_, f64, D>,
     ) -> Self {
         assert_eq!(density.shape(), energy.shape());
-        let (log_volume, log_energy) = from_de_to_logve(density, energy);
+        let (log_density, log_volume, log_energy) = from_de_to_logdve(density, energy);
         Self {
+            metallicity,
+            he_frac,
+            log_density,
             log_volume,
             log_energy,
             table,
@@ -50,7 +59,8 @@ impl<D: Dimension> CstCompoState<D> {
 
     pub fn set_state(&mut self, density: ArrayView<'_, f64, D>, energy: ArrayView<'_, f64, D>) {
         assert_eq!(density.shape(), energy.shape());
-        let (log_volume, log_energy) = from_de_to_logve(density, energy);
+        let (log_density, log_volume, log_energy) = from_de_to_logdve(density, energy);
+        self.log_density = log_density;
         self.log_volume = log_volume;
         self.log_energy = log_energy;
     }
@@ -60,11 +70,28 @@ impl<D: Dimension> CstCompoState<D> {
             .and(&self.log_energy)
             .map_collect(|&logv, &loge| self.table.at(loge, logv, var).expect("out of table"))
     }
+
+    pub fn metallicity(&self) -> f64 {
+        self.metallicity
+    }
+
+    pub fn he_frac(&self) -> f64 {
+        self.he_frac
+    }
+
+    pub fn h_frac(&self) -> f64 {
+        1.0 - self.metallicity - self.he_frac
+    }
+
+    pub fn log_density(&self) -> ArrayView<'_, f64, D> {
+        self.log_density.view()
+    }
 }
 
 pub struct CstMetalState<D: Dimension> {
     h_frac: Array<f64, D>,
     metallicity: f64,
+    log_density: Array<f64, D>,
     log_volume: Array<f64, D>,
     log_energy: Array<f64, D>,
     table: ConstMetalTables,
@@ -93,10 +120,11 @@ impl<D: Dimension> CstMetalState<D> {
         assert_eq!(he_frac.shape(), density.shape());
         assert_eq!(he_frac.shape(), energy.shape());
         let h_frac = he_frac.mapv(|he| 1.0 - he - metallicity);
-        let (log_volume, log_energy) = from_de_to_logve(density, energy);
+        let (log_density, log_volume, log_energy) = from_de_to_logdve(density, energy);
         Self {
             h_frac,
             metallicity,
+            log_density,
             log_volume,
             log_energy,
             table,
@@ -111,8 +139,9 @@ impl<D: Dimension> CstMetalState<D> {
     ) {
         assert_eq!(he_frac.shape(), density.shape());
         assert_eq!(he_frac.shape(), energy.shape());
-        let (log_volume, log_energy) = from_de_to_logve(density, energy);
+        let (log_density, log_volume, log_energy) = from_de_to_logdve(density, energy);
         self.h_frac = he_frac.mapv(|he| 1.0 - he - self.metallicity);
+        self.log_density = log_density;
         self.log_volume = log_volume;
         self.log_energy = log_energy;
     }
@@ -126,6 +155,18 @@ impl<D: Dimension> CstMetalState<D> {
                     .at(h_frac, loge, logv, var)
                     .expect("out of table")
             })
+    }
+
+    pub fn metallicity(&self) -> f64 {
+        self.metallicity
+    }
+
+    pub fn h_frac(&self) -> ArrayView<'_, f64, D> {
+        self.h_frac.view()
+    }
+
+    pub fn log_density(&self) -> ArrayView<'_, f64, D> {
+        self.log_density.view()
     }
 }
 

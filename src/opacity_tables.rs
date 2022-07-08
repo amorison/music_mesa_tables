@@ -130,6 +130,15 @@ impl ConstMetalTables {
             }
         }
     }
+
+    pub fn at(
+        &self,
+        h_frac: f64,
+        log_temperature: f64,
+        log_r: f64,
+    ) -> Result<f64, OutOfBoundsError> {
+        todo!()
+    }
 }
 
 /// Opacity table at constant metallicity and helium fraction.
