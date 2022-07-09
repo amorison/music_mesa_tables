@@ -70,7 +70,7 @@ impl LinearStencil {
                 }
             }
             LinearStencil::Between { ileft, iright, lin } => {
-                arr.slice_axis_inplace(axis, (*ileft..*iright).into());
+                arr.slice_axis_inplace(axis, (*ileft..=*iright).into());
                 LinearStencil::Between {
                     ileft: 0,
                     iright: 1,
