@@ -1,4 +1,5 @@
 mod eos;
+mod opacity;
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 
@@ -14,6 +15,8 @@ fn music_mesa_tables(_py: Python<'_>, pymod: &PyModule) -> PyResult<()> {
     pymod.add_class::<eos::CstCompoState>()?;
     pymod.add_class::<eos::CstMetalState>()?;
     pymod.add_class::<eos::StateVar>()?;
+    pymod.add_class::<opacity::CstCompoOpacity>()?;
+    pymod.add_class::<opacity::CstMetalOpacity>()?;
     pymod.add_function(wrap_pyfunction!(get_mesa_tables_version, pymod)?)?;
     Ok(())
 }
