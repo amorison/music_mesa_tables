@@ -4,7 +4,7 @@ use ndarray::{s, Array3, ArrayView3, Axis};
 
 use crate::{
     fort_unfmt::read_fort_record,
-    index::{IdxLin, OutOfBoundsError, Range},
+    index::{IdxLin, Indexable, LinearInterpolable, OutOfBoundsError, Range},
     interp::{cubic_spline_2d, LinearInterpolator},
     is_close::IsClose,
     raw_tables::eos::{AllRawTables, MetalRawTables, RawTable, RAW_TABLES},

@@ -4,14 +4,14 @@ use ndarray::{s, Array2, Array3, Array4, ArrayView2, ArrayView3, Axis};
 
 use crate::{
     fort_unfmt::read_fort_record,
-    index::{IdxLin, OutOfBoundsError, Range},
+    index::{CustomRange, IdxLin, Indexable, LinearInterpolable, OutOfBoundsError, Range},
     interp::{lin_interp_2d, LinearInterpolator, LinearStencil},
     raw_tables::opacity::{RawOpacityTable, RAW_TABLES},
 };
 
 /// The full opacity table.
 pub struct AllTables {
-    metallicities: Range,
+    metallicities: CustomRange,
     h_fracs: Range,
     log_temperature: Range,
     log_r: Range,
@@ -31,7 +31,10 @@ impl AllTables {
         shape.swap(2, 3); // nr, nt in file header
         let shape = shape.map(|e| e as usize);
 
-        let metallicities = read_range(&mut reader, shape[0])?;
+        let mut z_range = vec![0.0; shape[0]];
+        read_fort_record(&mut reader, &mut z_range)?;
+        let metallicities = CustomRange::new(z_range).unwrap();
+
         let h_fracs = read_range(&mut reader, shape[1])?;
         let log_temperature = read_range(&mut reader, shape[2])?;
         let log_r = read_range(&mut reader, shape[3])?;

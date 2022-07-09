@@ -11,6 +11,8 @@ pub struct Range {
     n_values: usize,
 }
 
+pub struct CustomRange(Vec<f64>);
+
 #[derive(Error, Debug)]
 pub enum RangeError {
     #[error("range should have at least two elements")]
@@ -30,6 +32,30 @@ pub struct OutOfBoundsError {
 pub enum IdxLin {
     Exact(usize),
     Between(usize, usize),
+}
+
+pub trait Indexable {
+    fn get(&self, index: usize) -> Option<f64>;
+
+    fn at(&self, index: usize) -> f64 {
+        self.get(index).expect("index is out of range")
+    }
+}
+
+/// Index can be used for linear interpolation.
+pub trait LinearInterpolable: Indexable {
+    fn idx_lin(&self, value: f64) -> Result<IdxLin, OutOfBoundsError>;
+
+    fn linear_stencil(&self, value: f64) -> Result<LinearStencil, OutOfBoundsError> {
+        match self.idx_lin(value)? {
+            IdxLin::Exact(i) => Ok(LinearStencil::Exact { i, value }),
+            IdxLin::Between(ileft, iright) => Ok(LinearStencil::Between {
+                ileft,
+                iright,
+                lin: LinearInterpolator::new(self.at(ileft), self.at(iright), value),
+            }),
+        }
+    }
 }
 
 pub struct RangeIterator {
@@ -126,18 +152,6 @@ impl Range {
         }
     }
 
-    pub fn at(&self, index: usize) -> f64 {
-        self.get(index).expect("index is out of range")
-    }
-
-    pub fn get(&self, index: usize) -> Option<f64> {
-        if index >= self.n_values {
-            None
-        } else {
-            Some(index as f64 * self.step + self.first)
-        }
-    }
-
     pub fn first(&self) -> f64 {
         self.first
     }
@@ -152,36 +166,6 @@ impl Range {
 
     pub fn n_values(&self) -> usize {
         self.n_values
-    }
-
-    pub fn idx_lin(&self, value: f64) -> Result<IdxLin, OutOfBoundsError> {
-        if value.is_close(self.first) {
-            Ok(IdxLin::Exact(0))
-        } else if value.is_close(self.last()) {
-            Ok(IdxLin::Exact(self.n_values - 1))
-        } else if value < self.first || value > self.last() {
-            Err(OutOfBoundsError { value })
-        } else {
-            let iguess = ((value - self.first) / self.step).floor() as usize;
-            if value.is_close(self.at(iguess)) {
-                Ok(IdxLin::Exact(iguess))
-            } else if self.get(iguess + 1).map_or(false, |v| v.is_close(value)) {
-                Ok(IdxLin::Exact(iguess + 1))
-            } else {
-                Ok(IdxLin::Between(iguess, iguess + 1))
-            }
-        }
-    }
-
-    pub fn linear_stencil(&self, value: f64) -> Result<LinearStencil, OutOfBoundsError> {
-        match self.idx_lin(value)? {
-            IdxLin::Exact(i) => Ok(LinearStencil::Exact { i, value }),
-            IdxLin::Between(ileft, iright) => Ok(LinearStencil::Between {
-                ileft,
-                iright,
-                lin: LinearInterpolator::new(self.at(iright), self.at(ileft), value),
-            }),
-        }
     }
 
     pub fn spline_stencil(&self, value: f64) -> Result<SplineStencil, OutOfBoundsError> {
@@ -218,6 +202,91 @@ impl Range {
                     ],
                     at: value,
                 })
+            }
+        }
+    }
+}
+
+impl Indexable for Range {
+    fn get(&self, index: usize) -> Option<f64> {
+        if index >= self.n_values {
+            None
+        } else {
+            Some(index as f64 * self.step + self.first)
+        }
+    }
+}
+
+impl LinearInterpolable for Range {
+    fn idx_lin(&self, value: f64) -> Result<IdxLin, OutOfBoundsError> {
+        if value.is_close(self.first) {
+            Ok(IdxLin::Exact(0))
+        } else if value.is_close(self.last()) {
+            Ok(IdxLin::Exact(self.n_values - 1))
+        } else if value < self.first || value > self.last() {
+            Err(OutOfBoundsError { value })
+        } else {
+            let iguess = ((value - self.first) / self.step).floor() as usize;
+            if value.is_close(self.at(iguess)) {
+                Ok(IdxLin::Exact(iguess))
+            } else if self.get(iguess + 1).map_or(false, |v| v.is_close(value)) {
+                Ok(IdxLin::Exact(iguess + 1))
+            } else {
+                Ok(IdxLin::Between(iguess, iguess + 1))
+            }
+        }
+    }
+}
+
+impl CustomRange {
+    pub fn new(values: Vec<f64>) -> Result<Self, RangeError> {
+        let n_values = values.len();
+        if n_values < 2 {
+            return Err(RangeError::FewerThanTwoValues);
+        }
+        if !(1..n_values).all(|i| values[i] > values[i - 1]) {
+            return Err(RangeError::NotInIncreasingOrder);
+        }
+        Ok(Self(values))
+    }
+
+    pub fn n_values(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl Indexable for CustomRange {
+    fn get(&self, index: usize) -> Option<f64> {
+        self.0.get(index).copied()
+    }
+}
+
+impl LinearInterpolable for CustomRange {
+    fn idx_lin(&self, value: f64) -> Result<IdxLin, OutOfBoundsError> {
+        let ilast = self.0.len() - 1;
+        if value.is_close(self.0[0]) {
+            Ok(IdxLin::Exact(0))
+        } else if value.is_close(self.0[ilast]) {
+            Ok(IdxLin::Exact(self.0.len() - 1))
+        } else if value < self.0[0] || value > self.0[ilast] {
+            Err(OutOfBoundsError { value })
+        } else {
+            // This could be implemented with a dichotomy, but in practice this
+            // is only used once on ranges with few elements (metallicity of
+            // opacity tables).
+            let iguess = self
+                .0
+                .iter()
+                .enumerate()
+                .find_map(|(i, &v)| (v > value).then_some(i))
+                .unwrap()
+                - 1;
+            if value.is_close(self.at(iguess)) {
+                Ok(IdxLin::Exact(iguess))
+            } else if self.get(iguess + 1).map_or(false, |v| v.is_close(value)) {
+                Ok(IdxLin::Exact(iguess + 1))
+            } else {
+                Ok(IdxLin::Between(iguess, iguess + 1))
             }
         }
     }
