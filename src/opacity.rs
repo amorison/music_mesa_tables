@@ -27,7 +27,7 @@ impl<D: Dimension> CstCompoOpacity<D> {
         Self { state, table }
     }
 
-    pub fn compute(&self) -> Array<f64, D> {
+    pub fn log_opacity(&self) -> Array<f64, D> {
         let state = self.state.read().unwrap();
         let logt = state.compute(StateVar::LogTemperature);
         Zip::from(&logt)
@@ -56,7 +56,7 @@ impl<D: Dimension> CstMetalOpacity<D> {
         Self { state, table }
     }
 
-    pub fn compute(&self) -> Array<f64, D> {
+    pub fn log_opacity(&self) -> Array<f64, D> {
         let state = self.state.read().unwrap();
         let logt = state.compute(StateVar::LogTemperature);
         Zip::from(&logt)
