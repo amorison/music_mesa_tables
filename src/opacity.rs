@@ -2,7 +2,6 @@ use ndarray::{Array, Dimension, Zip};
 
 use crate::{
     eos_tables::StateVar,
-    is_close::IsClose,
     opacity_tables::{AllTables, ConstMetalTables, RTempTable},
     state::{CstCompoState, CstMetalState},
 };
@@ -24,16 +23,6 @@ impl<D: Dimension> CstCompoOpacity<D> {
 
     pub fn with_table(table: RTempTable, state: CstCompoState<D>) -> Self {
         Self { state, table }
-    }
-
-    pub fn set_state(&mut self, state: CstCompoState<D>) {
-        if self.state.metallicity().is_close(state.metallicity())
-            && self.state.h_frac().is_close(state.h_frac())
-        {
-            self.state = state;
-        } else {
-            *self = Self::new(state);
-        }
     }
 
     pub fn compute(&self) -> Array<f64, D> {
@@ -62,14 +51,6 @@ impl<D: Dimension> CstMetalOpacity<D> {
 
     pub fn with_table(table: ConstMetalTables, state: CstMetalState<D>) -> Self {
         Self { state, table }
-    }
-
-    pub fn set_state(&mut self, state: CstMetalState<D>) {
-        if self.state.metallicity().is_close(state.metallicity()) {
-            self.state = state;
-        } else {
-            *self = Self::new(state);
-        }
     }
 
     pub fn compute(&self) -> Array<f64, D> {
