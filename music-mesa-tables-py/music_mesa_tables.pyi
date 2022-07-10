@@ -6,6 +6,14 @@ import numpy as np
 def get_mesa_tables_version() -> str: ...
 
 
+class CstCompoEos:
+    def __init__(self, metallicity: float, he_frac: float): ...
+
+
+class CstMetalEos:
+    def __init__(self, metallicity: float): ...
+
+
 class StateVar(Enum):
     LogDensity = auto()
     LogPressure = auto()
@@ -24,14 +32,7 @@ class StateVar(Enum):
 class CstCompoState:
     def __init__(
         self,
-        metallicity: float,
-        he_frac: float,
-        density: NDArray[np.float64],
-        energy: NDArray[np.float64]
-    ): ...
-
-    def set_state(
-        self,
+        table: CstCompoEos,
         density: NDArray[np.float64],
         energy: NDArray[np.float64]
     ): ...
@@ -42,14 +43,7 @@ class CstCompoState:
 class CstMetalState:
     def __init__(
         self,
-        metallicity: float,
-        he_frac: NDArray[np.float64],
-        density: NDArray[np.float64],
-        energy: NDArray[np.float64]
-    ): ...
-
-    def set_state(
-        self,
+        table: CstMetalEos,
         he_frac: NDArray[np.float64],
         density: NDArray[np.float64],
         energy: NDArray[np.float64]

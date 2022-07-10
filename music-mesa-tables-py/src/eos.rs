@@ -1,8 +1,10 @@
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use music_mesa_tables::{eos_tables, state};
 use numpy::{IxDyn, PyArrayDyn};
 use pyo3::prelude::*;
+
+use crate::eos_tables::{CstCompoEos, CstMetalEos};
 
 /// Represent a state variable that can be computed from MESA tables.
 #[pyclass]
@@ -43,58 +45,41 @@ impl From<StateVar> for eos_tables::StateVar {
 
 /// A state at constant metallicity and helium fraction.
 #[pyclass]
-pub struct CstCompoState(Arc<RwLock<state::CstCompoState<IxDyn>>>);
+pub struct CstCompoState(Arc<state::CstCompoState<IxDyn>>);
 
 #[pymethods]
 impl CstCompoState {
     #[new]
-    pub fn new(
-        metallicity: f64,
-        he_frac: f64,
-        density: &PyArrayDyn<f64>,
-        energy: &PyArrayDyn<f64>,
-    ) -> Self {
+    pub fn new(table: &CstCompoEos, density: &PyArrayDyn<f64>, energy: &PyArrayDyn<f64>) -> Self {
         let density = density.readonly();
         let energy = energy.readonly();
         let state =
-            state::CstCompoState::new(metallicity, he_frac, density.as_array(), energy.as_array());
-        Self(Arc::new(RwLock::new(state)))
-    }
-
-    /// Change the density and internal energy of the state, keeping the same composition.
-    /// This is more efficient than recreating a new state with the same composition
-    /// since this reuses the tables interpolated at the desired composition.
-    pub fn set_state(&mut self, density: &PyArrayDyn<f64>, energy: &PyArrayDyn<f64>) {
-        let density = density.readonly();
-        let energy = energy.readonly();
-        self.0
-            .write()
-            .unwrap()
-            .set_state(density.as_array(), energy.as_array());
+            state::CstCompoState::new(table.inner_table(), density.as_array(), energy.as_array());
+        Self(state.into())
     }
 
     /// Compute the requested [`StateVar`] for this state.
     pub fn compute<'py>(&self, py: Python<'py>, var: StateVar) -> &'py PyArrayDyn<f64> {
-        let out = self.0.read().unwrap().compute(var.into());
+        let out = self.0.compute(var.into());
         PyArrayDyn::from_owned_array(py, out)
     }
 }
 
 impl CstCompoState {
-    pub(crate) fn inner_state(&self) -> Arc<RwLock<state::CstCompoState<IxDyn>>> {
+    pub(crate) fn inner_state(&self) -> Arc<state::CstCompoState<IxDyn>> {
         self.0.clone()
     }
 }
 
 /// A state at constant metallicity.
 #[pyclass]
-pub struct CstMetalState(Arc<RwLock<state::CstMetalState<IxDyn>>>);
+pub struct CstMetalState(Arc<state::CstMetalState<IxDyn>>);
 
 #[pymethods]
 impl CstMetalState {
     #[new]
     pub fn new(
-        metallicity: f64,
+        table: &CstMetalEos,
         he_frac: &PyArrayDyn<f64>,
         density: &PyArrayDyn<f64>,
         energy: &PyArrayDyn<f64>,
@@ -103,43 +88,23 @@ impl CstMetalState {
         let energy = energy.readonly();
         let he_frac = he_frac.readonly();
         let state = state::CstMetalState::new(
-            metallicity,
+            table.inner_table(),
             he_frac.as_array(),
             density.as_array(),
             energy.as_array(),
         );
-        Self(Arc::new(RwLock::new(state)))
-    }
-
-    /// Change the helium fraction, density, and internal energy of the state,
-    /// keeping the same metallicity. This is more efficient than recreating a
-    /// new state with the same metallicity since this reuses the tables
-    /// interpolated at the desired metallicity.
-    pub fn set_state(
-        &mut self,
-        he_frac: &PyArrayDyn<f64>,
-        density: &PyArrayDyn<f64>,
-        energy: &PyArrayDyn<f64>,
-    ) {
-        let he_frac = he_frac.readonly();
-        let density = density.readonly();
-        let energy = energy.readonly();
-        self.0.write().unwrap().set_state(
-            he_frac.as_array(),
-            density.as_array(),
-            energy.as_array(),
-        );
+        Self(state.into())
     }
 
     /// Compute the requested [`StateVar`] for this state.
     pub fn compute<'py>(&self, py: Python<'py>, var: StateVar) -> &'py PyArrayDyn<f64> {
-        let out = self.0.read().unwrap().compute(var.into());
+        let out = self.0.compute(var.into());
         PyArrayDyn::from_owned_array(py, out)
     }
 }
 
 impl CstMetalState {
-    pub(crate) fn inner_state(&self) -> Arc<RwLock<state::CstMetalState<IxDyn>>> {
+    pub(crate) fn inner_state(&self) -> Arc<state::CstMetalState<IxDyn>> {
         self.0.clone()
     }
 }

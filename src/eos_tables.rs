@@ -119,6 +119,11 @@ impl ConstMetalTables {
         }
     }
 
+    pub fn take_at_he_frac(self, he_frac: f64) -> Result<VolumeEnergyTable, OutOfBoundsError> {
+        let metal = self.metallicity();
+        self.take_at_h_frac(1.0 - he_frac - metal)
+    }
+
     pub fn at_h_frac(&self, h_frac: f64) -> Result<VolumeEnergyTable, OutOfBoundsError> {
         match self.h_fracs.idx_lin(h_frac)? {
             IdxLin::Exact(i) => Ok(self.tables[i].clone()),

@@ -1,12 +1,14 @@
+use std::sync::Arc;
+
 use ndarray::{Array, ArrayView, Dimension, Zip};
 
-use crate::eos_tables::{AllTables, ConstMetalTables, StateVar, VolumeEnergyTable};
+use crate::eos_tables::{ConstMetalTables, StateVar, VolumeEnergyTable};
 
 pub struct CstCompoState<D: Dimension> {
     log_density: Array<f64, D>,
     log_volume: Array<f64, D>,
     log_energy: Array<f64, D>,
-    table: VolumeEnergyTable,
+    table: Arc<VolumeEnergyTable>,
 }
 
 fn from_de_to_logdve<D: Dimension>(
@@ -23,21 +25,7 @@ fn from_de_to_logdve<D: Dimension>(
 
 impl<D: Dimension> CstCompoState<D> {
     pub fn new(
-        metallicity: f64,
-        he_frac: f64,
-        density: ArrayView<'_, f64, D>,
-        energy: ArrayView<'_, f64, D>,
-    ) -> Self {
-        let table = AllTables::default()
-            .take_at_metallicity(metallicity)
-            .expect("metallicity is in range")
-            .take_at_h_frac(1.0 - he_frac - metallicity)
-            .expect("He fraction is in range");
-        Self::with_table(table, density, energy)
-    }
-
-    pub fn with_table(
-        table: VolumeEnergyTable,
+        table: Arc<VolumeEnergyTable>,
         density: ArrayView<'_, f64, D>,
         energy: ArrayView<'_, f64, D>,
     ) -> Self {
@@ -49,14 +37,6 @@ impl<D: Dimension> CstCompoState<D> {
             log_energy,
             table,
         }
-    }
-
-    pub fn set_state(&mut self, density: ArrayView<'_, f64, D>, energy: ArrayView<'_, f64, D>) {
-        assert_eq!(density.shape(), energy.shape());
-        let (log_density, log_volume, log_energy) = from_de_to_logdve(density, energy);
-        self.log_density = log_density;
-        self.log_volume = log_volume;
-        self.log_energy = log_energy;
     }
 
     pub fn compute(&self, var: StateVar) -> Array<f64, D> {
@@ -87,24 +67,12 @@ pub struct CstMetalState<D: Dimension> {
     log_density: Array<f64, D>,
     log_volume: Array<f64, D>,
     log_energy: Array<f64, D>,
-    table: ConstMetalTables,
+    table: Arc<ConstMetalTables>,
 }
 
 impl<D: Dimension> CstMetalState<D> {
     pub fn new(
-        metallicity: f64,
-        he_frac: ArrayView<'_, f64, D>,
-        density: ArrayView<'_, f64, D>,
-        energy: ArrayView<'_, f64, D>,
-    ) -> Self {
-        let table = AllTables::default()
-            .take_at_metallicity(metallicity)
-            .expect("metallicity is in range");
-        Self::with_table(table, he_frac, density, energy)
-    }
-
-    pub fn with_table(
-        table: ConstMetalTables,
+        table: Arc<ConstMetalTables>,
         he_frac: ArrayView<'_, f64, D>,
         density: ArrayView<'_, f64, D>,
         energy: ArrayView<'_, f64, D>,
@@ -165,15 +133,24 @@ impl<D: Dimension> CstMetalState<D> {
 mod tests {
     use ndarray::{arr1, Zip};
 
-    use crate::{eos_tables::StateVar, is_close::IsClose, state::CstMetalState};
+    use crate::{
+        eos_tables::{AllTables, StateVar},
+        is_close::IsClose,
+        state::CstMetalState,
+    };
 
     use super::CstCompoState;
 
     #[test]
     fn constant_compo() {
+        let table = AllTables::default()
+            .take_at_metallicity(0.02)
+            .unwrap()
+            .take_at_he_frac(0.42)
+            .unwrap();
         let density = arr1(&[3.5, 10.3, 10.5]);
         let energy = arr1(&[5.7e14, 4.5e15, 6.7e16]);
-        let state = CstCompoState::new(0.02, 0.42, density.view(), energy.view());
+        let state = CstCompoState::new(table.into(), density.view(), energy.view());
         let d_comp = state
             .compute(StateVar::LogDensity)
             .mapv_into(|logd| 10.0_f64.powf(logd));
@@ -184,10 +161,12 @@ mod tests {
 
     #[test]
     fn constant_metal() {
+        let table = AllTables::default().take_at_metallicity(0.02).unwrap();
         let he_frac = arr1(&[0.2, 0.3, 0.4]);
         let mut density = arr1(&[3.5, 10.3, 10.5]);
         let mut energy = arr1(&[5.7e14, 4.5e15, 6.7e16]);
-        let mut state = CstMetalState::new(0.02, he_frac.view(), density.view(), energy.view());
+        let mut state =
+            CstMetalState::new(table.into(), he_frac.view(), density.view(), energy.view());
         let d_comp = state
             .compute(StateVar::LogDensity)
             .mapv_into(|logd| 10.0_f64.powf(logd));
