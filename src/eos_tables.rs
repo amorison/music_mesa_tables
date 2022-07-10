@@ -1,13 +1,10 @@
-use std::io::{self, Read};
-
-use ndarray::{s, Array3, ArrayView3, Axis};
+use ndarray::{Array3, ArrayView3, Axis};
 
 use crate::{
-    fort_unfmt::read_fort_record,
     index::{IdxLin, Indexable, LinearInterpolable, OutOfBoundsError, Range},
     interp::{cubic_spline_2d, LinearInterpolator},
     is_close::IsClose,
-    raw_tables::eos::{AllRawTables, MetalRawTables, RawTable, RAW_TABLES},
+    raw_tables::eos::{AllRawTables, MetalRawTables, RawTableContent, RAW_TABLES},
 };
 
 /// State variable labels.
@@ -44,11 +41,6 @@ impl AllTables {
             IdxLin::Between(i, j) => {
                 let r_tables = self.tables.swap_remove(j);
                 let l_tables = self.tables.swap_remove(i);
-                let lin = LinearInterpolator::new(
-                    self.metallicities.at(i),
-                    self.metallicities.at(j),
-                    metallicity,
-                );
                 let h_fracs = l_tables
                     .h_fracs
                     .subrange_in(r_tables.h_fracs)
@@ -59,10 +51,14 @@ impl AllTables {
                         // this is not in-place!
                         let left = l_tables.at_h_frac(h_frac)?;
                         let right = r_tables.at_h_frac(h_frac)?;
-                        Ok(left.interp_with(&right, &lin))
+                        Ok(left.interp_at_metal(&right, metallicity))
                     })
                     .collect::<Result<_, _>>()?;
-                Ok(ConstMetalTables { h_fracs, tables })
+                Ok(ConstMetalTables {
+                    metallicity,
+                    h_fracs,
+                    tables,
+                })
             }
         }
     }
@@ -70,9 +66,15 @@ impl AllTables {
 
 impl From<&AllRawTables> for AllTables {
     fn from(rawtbls: &AllRawTables) -> Self {
+        let metallicities = rawtbls.metallicities;
         Self {
-            metallicities: rawtbls.metallicities,
-            tables: rawtbls.tables.iter().map(|t| t.into()).collect(),
+            metallicities,
+            tables: rawtbls
+                .tables
+                .iter()
+                .zip(metallicities)
+                .map(|(t, m)| ConstMetalTables::from_raw(m, t))
+                .collect(),
         }
     }
 }
@@ -85,29 +87,34 @@ impl Default for AllTables {
 
 /// The collection of MESA tables at a given metallicity
 pub struct ConstMetalTables {
+    metallicity: f64,
     h_fracs: Range,
     tables: Vec<VolumeEnergyTable>,
 }
 
-impl From<&MetalRawTables> for ConstMetalTables {
-    fn from(rawtbls: &MetalRawTables) -> Self {
+impl ConstMetalTables {
+    fn from_raw(metallicity: f64, raw: &MetalRawTables) -> Self {
+        let h_fracs = raw.h_fracs;
         Self {
-            h_fracs: rawtbls.h_fracs,
-            tables: rawtbls.tables.iter().map(|t| t.into()).collect(),
+            metallicity,
+            h_fracs,
+            tables: raw
+                .tables
+                .iter()
+                .zip(h_fracs)
+                .map(|(t, h)| VolumeEnergyTable::from_raw(metallicity, h, t.into()))
+                .collect(),
         }
     }
-}
 
-impl ConstMetalTables {
     pub fn take_at_h_frac(mut self, h_frac: f64) -> Result<VolumeEnergyTable, OutOfBoundsError> {
         match self.h_fracs.idx_lin(h_frac)? {
             IdxLin::Exact(i) => Ok(self.tables.swap_remove(i)),
             IdxLin::Between(i, j) => {
                 let right = self.tables.swap_remove(j);
                 let left = self.tables.swap_remove(i);
-                let lin = LinearInterpolator::new(self.h_fracs.at(i), self.h_fracs.at(j), h_frac);
-                // not in-place! lin should have in-place impl too
-                Ok(left.interp_with(&right, &lin))
+                // not in-place!
+                Ok(left.interp_at_h_frac(&right, h_frac))
             }
         }
     }
@@ -118,10 +125,13 @@ impl ConstMetalTables {
             IdxLin::Between(i, j) => {
                 let left = &self.tables[i];
                 let right = &self.tables[j];
-                let lin = LinearInterpolator::new(self.h_fracs.at(i), self.h_fracs.at(j), h_frac);
-                Ok(left.interp_with(right, &lin))
+                Ok(left.interp_at_h_frac(right, h_frac))
             }
         }
+    }
+
+    pub fn metallicity(&self) -> f64 {
+        self.metallicity
     }
 
     pub fn at(
@@ -157,15 +167,13 @@ impl ConstMetalTables {
     }
 }
 
-impl From<&RawTable> for VolumeEnergyTable {
-    fn from(rawtbl: &RawTable) -> Self {
-        Self::read_from(rawtbl.0).expect("raw tables are well-formed")
-    }
-}
-
 #[derive(Clone)]
 /// Represent a MESA table in volume/energy space at a given composition.
 pub struct VolumeEnergyTable {
+    /// Metallicity
+    metallicity: f64,
+    /// Hydrogen fraction
+    h_frac: f64,
     /// Volume index (in log)
     log_volume: Range,
     /// Energy index (in log)
@@ -175,35 +183,27 @@ pub struct VolumeEnergyTable {
 }
 
 impl VolumeEnergyTable {
-    fn read_from<R: Read>(mut reader: R) -> io::Result<Self> {
-        let mut shape = [0_u32; 3]; // ne, nv, nvars
-        read_fort_record(&mut reader, &mut shape)?;
-        let shape = shape.map(|e| e as usize);
-
-        let mut log_volume = vec![0.0; shape[1]];
-        read_fort_record(&mut reader, &mut log_volume)?;
-        let log_volume = Range::from_slice(&log_volume)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-
-        let mut log_energy = vec![0.0; shape[0]];
-        read_fort_record(&mut reader, &mut log_energy)?;
-        let log_energy = Range::from_slice(&log_energy)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-
-        let mut values = Array3::zeros(shape);
-        for i_v in 0..shape[1] {
-            for i_e in 0..shape[0] {
-                let mut slc = values.slice_mut(s![i_e, i_v, ..]);
-                let raw_slc = slc.as_slice_mut().expect("values should be contiguous");
-                read_fort_record(&mut reader, raw_slc)?;
-            }
-        }
-
-        Ok(Self {
+    fn from_raw(metallicity: f64, h_frac: f64, raw: RawTableContent) -> Self {
+        let RawTableContent {
             log_volume,
             log_energy,
             values,
-        })
+        } = raw;
+        Self {
+            metallicity,
+            h_frac,
+            log_volume,
+            log_energy,
+            values,
+        }
+    }
+
+    pub fn metallicity(&self) -> f64 {
+        self.metallicity
+    }
+
+    pub fn h_frac(&self) -> f64 {
+        self.h_frac
     }
 
     pub fn log_volume(&self) -> Range {
@@ -218,10 +218,28 @@ impl VolumeEnergyTable {
         self.values.view()
     }
 
-    pub(crate) fn interp_with(&self, other: &Self, lin: &LinearInterpolator) -> Self {
+    pub(crate) fn interp_at_metal(&self, other: &Self, metallicity: f64) -> Self {
         assert!(self.log_volume.is_close(other.log_volume));
         assert!(self.log_energy.is_close(other.log_energy));
+        assert!(self.h_frac.is_close(other.h_frac));
+        let lin = LinearInterpolator::new(self.metallicity, other.metallicity, metallicity);
         Self {
+            metallicity,
+            h_frac: self.h_frac,
+            values: lin.interp(self.values.view(), other.values.view()),
+            log_volume: self.log_volume,
+            log_energy: self.log_energy,
+        }
+    }
+
+    pub(crate) fn interp_at_h_frac(&self, other: &Self, h_frac: f64) -> Self {
+        assert!(self.log_volume.is_close(other.log_volume));
+        assert!(self.log_energy.is_close(other.log_energy));
+        assert!(self.metallicity.is_close(other.metallicity));
+        let lin = LinearInterpolator::new(self.h_frac, other.h_frac, h_frac);
+        Self {
+            metallicity: self.metallicity,
+            h_frac,
             values: lin.interp(self.values.view(), other.values.view()),
             log_volume: self.log_volume,
             log_energy: self.log_energy,

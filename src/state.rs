@@ -3,8 +3,6 @@ use ndarray::{Array, ArrayView, Dimension, Zip};
 use crate::eos_tables::{AllTables, ConstMetalTables, StateVar, VolumeEnergyTable};
 
 pub struct CstCompoState<D: Dimension> {
-    metallicity: f64,
-    he_frac: f64,
     log_density: Array<f64, D>,
     log_volume: Array<f64, D>,
     log_energy: Array<f64, D>,
@@ -35,21 +33,17 @@ impl<D: Dimension> CstCompoState<D> {
             .expect("metallicity is in range")
             .take_at_h_frac(1.0 - he_frac - metallicity)
             .expect("He fraction is in range");
-        Self::with_table(table, metallicity, he_frac, density, energy)
+        Self::with_table(table, density, energy)
     }
 
     pub fn with_table(
         table: VolumeEnergyTable,
-        metallicity: f64,
-        he_frac: f64,
         density: ArrayView<'_, f64, D>,
         energy: ArrayView<'_, f64, D>,
     ) -> Self {
         assert_eq!(density.shape(), energy.shape());
         let (log_density, log_volume, log_energy) = from_de_to_logdve(density, energy);
         Self {
-            metallicity,
-            he_frac,
             log_density,
             log_volume,
             log_energy,
@@ -72,15 +66,15 @@ impl<D: Dimension> CstCompoState<D> {
     }
 
     pub fn metallicity(&self) -> f64 {
-        self.metallicity
+        self.table.metallicity()
     }
 
     pub fn he_frac(&self) -> f64 {
-        self.he_frac
+        1.0 - self.h_frac() - self.metallicity()
     }
 
     pub fn h_frac(&self) -> f64 {
-        1.0 - self.metallicity - self.he_frac
+        self.table.h_frac()
     }
 
     pub fn log_density(&self) -> ArrayView<'_, f64, D> {
@@ -90,7 +84,6 @@ impl<D: Dimension> CstCompoState<D> {
 
 pub struct CstMetalState<D: Dimension> {
     h_frac: Array<f64, D>,
-    metallicity: f64,
     log_density: Array<f64, D>,
     log_volume: Array<f64, D>,
     log_energy: Array<f64, D>,
@@ -107,23 +100,21 @@ impl<D: Dimension> CstMetalState<D> {
         let table = AllTables::default()
             .take_at_metallicity(metallicity)
             .expect("metallicity is in range");
-        Self::with_table(table, metallicity, he_frac, density, energy)
+        Self::with_table(table, he_frac, density, energy)
     }
 
     pub fn with_table(
         table: ConstMetalTables,
-        metallicity: f64,
         he_frac: ArrayView<'_, f64, D>,
         density: ArrayView<'_, f64, D>,
         energy: ArrayView<'_, f64, D>,
     ) -> Self {
         assert_eq!(he_frac.shape(), density.shape());
         assert_eq!(he_frac.shape(), energy.shape());
-        let h_frac = he_frac.mapv(|he| 1.0 - he - metallicity);
+        let h_frac = he_frac.mapv(|he| 1.0 - he - table.metallicity());
         let (log_density, log_volume, log_energy) = from_de_to_logdve(density, energy);
         Self {
             h_frac,
-            metallicity,
             log_density,
             log_volume,
             log_energy,
@@ -140,7 +131,7 @@ impl<D: Dimension> CstMetalState<D> {
         assert_eq!(he_frac.shape(), density.shape());
         assert_eq!(he_frac.shape(), energy.shape());
         let (log_density, log_volume, log_energy) = from_de_to_logdve(density, energy);
-        self.h_frac = he_frac.mapv(|he| 1.0 - he - self.metallicity);
+        self.h_frac = he_frac.mapv(|he| 1.0 - he - self.metallicity());
         self.log_density = log_density;
         self.log_volume = log_volume;
         self.log_energy = log_energy;
@@ -158,7 +149,7 @@ impl<D: Dimension> CstMetalState<D> {
     }
 
     pub fn metallicity(&self) -> f64 {
-        self.metallicity
+        self.table.metallicity()
     }
 
     pub fn h_frac(&self) -> ArrayView<'_, f64, D> {
