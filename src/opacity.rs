@@ -4,6 +4,7 @@ use ndarray::{Array, Dimension, Zip};
 
 use crate::{
     eos_tables::StateVar,
+    is_close::IsClose,
     opacity_tables::{AllTables, ConstMetalTables, RTempTable},
     state::{CstCompoState, CstMetalState},
 };
@@ -20,10 +21,14 @@ impl<D: Dimension> CstCompoOpacity<D> {
             .expect("metallicity is in range")
             .take_at_h_frac(state.read().unwrap().h_frac())
             .expect("He fraction is in range");
-        Self::with_table(table, state)
+        Self { state, table }
     }
 
     pub fn with_table(table: RTempTable, state: Arc<RwLock<CstCompoState<D>>>) -> Self {
+        assert!(table
+            .metallicity()
+            .is_close(state.read().unwrap().metallicity()));
+        assert!(table.h_frac().is_close(state.read().unwrap().h_frac()));
         Self { state, table }
     }
 
@@ -49,10 +54,13 @@ impl<D: Dimension> CstMetalOpacity<D> {
         let table = AllTables::default()
             .take_at_metallicity(state.read().unwrap().metallicity())
             .expect("metallicity is in range");
-        Self::with_table(table, state)
+        Self { state, table }
     }
 
     pub fn with_table(table: ConstMetalTables, state: Arc<RwLock<CstMetalState<D>>>) -> Self {
+        assert!(table
+            .metallicity()
+            .is_close(state.read().unwrap().metallicity()));
         Self { state, table }
     }
 

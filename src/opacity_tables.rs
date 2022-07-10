@@ -65,6 +65,7 @@ impl AllTables {
     ) -> Result<ConstMetalTables, OutOfBoundsError> {
         match self.metallicities.idx_lin(metallicity)? {
             IdxLin::Exact(i) => Ok(ConstMetalTables {
+                metallicity,
                 h_fracs: self.h_fracs,
                 log_temperature: self.log_temperature,
                 log_r: self.log_r,
@@ -81,6 +82,7 @@ impl AllTables {
                     self.values.index_axis(Axis(0), j),
                 );
                 Ok(ConstMetalTables {
+                    metallicity,
                     h_fracs: self.h_fracs,
                     log_temperature: self.log_temperature,
                     log_r: self.log_r,
@@ -105,6 +107,7 @@ impl Default for AllTables {
 
 /// Opacity table at constant metallicity.
 pub struct ConstMetalTables {
+    metallicity: f64,
     h_fracs: Range,
     log_temperature: Range,
     log_r: Range,
@@ -115,6 +118,8 @@ impl ConstMetalTables {
     pub fn take_at_h_frac(self, h_frac: f64) -> Result<RTempTable, OutOfBoundsError> {
         match self.h_fracs.idx_lin(h_frac)? {
             IdxLin::Exact(i) => Ok(RTempTable {
+                metallicity: self.metallicity,
+                h_frac,
                 log_temperature: self.log_temperature,
                 log_r: self.log_r,
                 values: self.values.index_axis_move(Axis(0), i),
@@ -126,12 +131,18 @@ impl ConstMetalTables {
                     self.values.index_axis(Axis(0), j),
                 );
                 Ok(RTempTable {
+                    metallicity: self.metallicity,
+                    h_frac,
                     log_temperature: self.log_temperature,
                     log_r: self.log_r,
                     values,
                 })
             }
         }
+    }
+
+    pub fn metallicity(&self) -> f64 {
+        self.metallicity
     }
 
     pub fn values(&self) -> ArrayView3<f64> {
@@ -168,12 +179,22 @@ impl ConstMetalTables {
 
 /// Opacity table at constant metallicity and helium fraction.
 pub struct RTempTable {
+    metallicity: f64,
+    h_frac: f64,
     log_temperature: Range,
     log_r: Range,
     values: Array2<f64>,
 }
 
 impl RTempTable {
+    pub fn metallicity(&self) -> f64 {
+        self.metallicity
+    }
+
+    pub fn h_frac(&self) -> f64 {
+        self.h_frac
+    }
+
     pub fn values(&self) -> ArrayView2<f64> {
         self.values.view()
     }
