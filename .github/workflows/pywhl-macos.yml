@@ -1,0 +1,28 @@
+name: create macOS universal Python wheel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install ARM target
+        run: |
+          rustup target add aarch64-apple-darwin
+      - name: Install Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.7'
+      - name: maturin build
+        uses: messense/maturin-action@v1
+        with:
+          maturin-version: '0.13.1'
+          command: build
+          args: -m music-mesa-tables-py/Cargo.toml --universal2
+      - uses: actions/upload-artifact@v3
+        with:
+          name: macOS-wheel
+          path: target/wheels/*.whl
+          if-no-files-found: error
