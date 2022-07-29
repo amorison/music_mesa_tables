@@ -5,3 +5,6 @@ build-backend = "maturin"
 [project]
 name = "music-mesa-tables"
 requires-python = ">=3.7"
+dependencies = [
+    "numpy>=1.21",
+]
