@@ -2,12 +2,11 @@ mod eos;
 mod eos_tables;
 mod opacity;
 use pyo3::prelude::*;
-use pyo3::types::PyString;
 
 /// Get the version number of the MESA tables backend library.
 #[pyfunction]
-fn get_mesa_tables_version(py: Python<'_>) -> &PyString {
-    PyString::new(py, music_mesa_tables::VERSION)
+fn get_mesa_tables_version() -> &'static str {
+    music_mesa_tables::VERSION
 }
 
 /// This exposes interpolation routines of MESA tables.
