@@ -8,5 +8,5 @@ GitHub action (only for `x86_64` for now), and Linux wheels can be produced
 with:
 
 ```
-docker run --rm -v $(pwd):/io ghcr.io/pyo3/maturin build --release -m music-mesa-tables-py/Cargo.toml --manylinux 2010
+docker run --rm -v $(pwd):/io ghcr.io/pyo3/maturin build --release -m music-mesa-tables-py/Cargo.toml --manylinux 2014
 ```
