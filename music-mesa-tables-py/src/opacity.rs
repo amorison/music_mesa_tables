@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 use crate::eos::{CstCompoState, CstMetalState};
 
 /// Opacity of a state at constant metallicity and helium fraction.
-#[pyclass]
+#[pyclass(frozen)]
 pub struct CstCompoOpacity(opacity::CstCompoOpacity<IxDyn>);
 
 #[pymethods]
@@ -24,7 +24,7 @@ impl CstCompoOpacity {
 }
 
 /// Opacity of a state at constant metallicity.
-#[pyclass]
+#[pyclass(frozen)]
 pub struct CstMetalOpacity(opacity::CstMetalOpacity<IxDyn>);
 
 #[pymethods]

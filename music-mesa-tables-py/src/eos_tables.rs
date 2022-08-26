@@ -3,7 +3,7 @@ use pyo3::prelude::*;
 use std::sync::Arc;
 
 /// EOS tables at constant metallicity and helium fraction.
-#[pyclass]
+#[pyclass(frozen)]
 pub struct CstCompoEos(Arc<eos_tables::VolumeEnergyTable>);
 
 #[pymethods]
@@ -26,7 +26,7 @@ impl CstCompoEos {
 }
 
 /// EOS tables at constant metallicity.
-#[pyclass]
+#[pyclass(frozen)]
 pub struct CstMetalEos(Arc<eos_tables::ConstMetalTables>);
 
 #[pymethods]

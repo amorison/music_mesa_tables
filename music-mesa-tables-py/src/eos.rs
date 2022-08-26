@@ -7,7 +7,7 @@ use pyo3::prelude::*;
 use crate::eos_tables::{CstCompoEos, CstMetalEos};
 
 /// Represent a state variable that can be computed from MESA tables.
-#[pyclass]
+#[pyclass(frozen)]
 #[derive(Copy, Clone)]
 pub enum StateVar {
     LogDensity,
@@ -44,7 +44,7 @@ impl From<StateVar> for eos_tables::StateVar {
 }
 
 /// A state at constant metallicity and helium fraction.
-#[pyclass]
+#[pyclass(frozen)]
 pub struct CstCompoState(Arc<state::CstCompoState<IxDyn>>);
 
 #[pymethods]
@@ -72,7 +72,7 @@ impl CstCompoState {
 }
 
 /// A state at constant metallicity.
-#[pyclass]
+#[pyclass(frozen)]
 pub struct CstMetalState(Arc<state::CstMetalState<IxDyn>>);
 
 #[pymethods]
