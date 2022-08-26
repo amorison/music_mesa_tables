@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 /// Get the version number of the MESA tables backend library.
 #[pyfunction]
 fn get_mesa_tables_version() -> &'static str {
-    music_mesa_tables::VERSION
+    ::music_mesa_tables::VERSION
 }
 
 /// This exposes interpolation routines of MESA tables.
