@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ndarray = "0.15.4"
-thiserror = "1.0.31"
+ndarray = "0.15.6"
+thiserror = "1.0.40"
 
 [workspace]
 members = ["music-mesa-tables-py"]
