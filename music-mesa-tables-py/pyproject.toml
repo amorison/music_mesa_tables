@@ -8,3 +8,8 @@ requires-python = ">=3.7"
 dependencies = [
     "numpy>=1.21",
 ]
+
+[tool.maturin]
+profile = "release"
+compatibility = "manylinux2014"
+strip = true

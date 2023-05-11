@@ -23,14 +23,14 @@ jobs:
       #  with:
       #    maturin-version: '0.15.1'
       #    command: build
-      #    args: --release -m music-mesa-tables-py/Cargo.toml --target aarch64-apple-darwin
+      #    args: -m music-mesa-tables-py/Cargo.toml --target aarch64-apple-darwin
 
       - name: x64 build
         uses: messense/maturin-action@v1
         with:
           maturin-version: '0.15.1'
           command: build
-          args: --release -m music-mesa-tables-py/Cargo.toml
+          args: -m music-mesa-tables-py/Cargo.toml
 
       - uses: actions/upload-artifact@v3
         with:
