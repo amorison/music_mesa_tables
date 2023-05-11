@@ -19,14 +19,14 @@ jobs:
       #  run: |
       #    rustup target add aarch64-apple-darwin
       #- name: arm build
-      #  uses: messense/maturin-action@v1
+      #  uses: PyO3/maturin-action@v1
       #  with:
       #    maturin-version: '0.15.1'
       #    command: build
       #    args: -m music-mesa-tables-py/Cargo.toml --target aarch64-apple-darwin
 
       - name: x64 build
-        uses: messense/maturin-action@v1
+        uses: PyO3/maturin-action@v1
         with:
           maturin-version: '0.15.1'
           command: build
