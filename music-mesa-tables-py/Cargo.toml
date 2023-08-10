@@ -1,6 +1,6 @@
 [package]
 name = "music-mesa-tables-py"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [lib]
@@ -8,6 +8,6 @@ name = "music_mesa_tables"
 crate-type = ["cdylib"]
 
 [dependencies]
-music_mesa_tables = { path = "..", version = "0.1.0" }
-numpy = "0.18.0"
-pyo3 = { version = "0.18.3", features = ["extension-module", "abi3-py37"] }
+music_mesa_tables = { path = "..", version = "0.2.0" }
+numpy = "0.19.0"
+pyo3 = { version = "0.19.2", features = ["extension-module", "abi3-py37"] }

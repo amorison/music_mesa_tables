@@ -14,21 +14,20 @@ jobs:
         with:
           python-version: '3.7'
 
-      # uncomment the two following steps to build ARM wheels
-      #- name: install ARM target
-      #  run: |
-      #    rustup target add aarch64-apple-darwin
-      #- name: arm build
-      #  uses: PyO3/maturin-action@v1
-      #  with:
-      #    maturin-version: '0.15.1'
-      #    command: build
-      #    args: -m music-mesa-tables-py/Cargo.toml --target aarch64-apple-darwin
+      - name: install ARM target
+        run: |
+          rustup target add aarch64-apple-darwin
+      - name: arm build
+        uses: PyO3/maturin-action@v1
+        with:
+          maturin-version: '1.2.0'
+          command: build
+          args: -m music-mesa-tables-py/Cargo.toml --target aarch64-apple-darwin
 
       - name: x64 build
         uses: PyO3/maturin-action@v1
         with:
-          maturin-version: '0.15.1'
+          maturin-version: '1.2.0'
           command: build
           args: -m music-mesa-tables-py/Cargo.toml
 
