@@ -91,28 +91,17 @@ fn low_level_spline(x: [f64; 4], y: [f64; 4], at: f64) -> f64 {
 }
 
 /// Centered cubic spline interpolator.
-pub enum SplineStencil {
-    Exact {
-        i: usize,
-        value: f64,
-    },
-    Centered {
-        r: std::ops::Range<usize>,
-        xs: [f64; 4],
-        at: f64,
-    },
+pub struct SplineStencil {
+    pub r: std::ops::Range<usize>,
+    pub xs: [f64; 4],
+    pub at: f64,
 }
 
 impl SplineStencil {
     pub fn apply_to(&self, arr: ArrayView1<'_, f64>) -> f64 {
-        match self {
-            SplineStencil::Exact { i, .. } => arr[*i],
-            SplineStencil::Centered { r, xs, at } => {
-                let i = r.start;
-                let y: [f64; 4] = [arr[i], arr[i + 1], arr[i + 2], arr[i + 3]];
-                low_level_spline(*xs, y, *at)
-            }
-        }
+        let i = self.r.start;
+        let y: [f64; 4] = [arr[i], arr[i + 1], arr[i + 2], arr[i + 3]];
+        low_level_spline(self.xs, y, self.at)
     }
 
     pub(crate) fn slice_view<D: Dimension>(
@@ -120,22 +109,11 @@ impl SplineStencil {
         axis: Axis,
         arr: &mut ArrayView<'_, f64, D>,
     ) -> Self {
-        match self {
-            SplineStencil::Exact { i, value } => {
-                arr.slice_axis_inplace(axis, (*i..*i + 1).into());
-                SplineStencil::Exact {
-                    i: 0,
-                    value: *value,
-                }
-            }
-            SplineStencil::Centered { r, xs, at } => {
-                arr.slice_axis_inplace(axis, r.clone().into());
-                SplineStencil::Centered {
-                    r: 0..4,
-                    xs: *xs,
-                    at: *at,
-                }
-            }
+        arr.slice_axis_inplace(axis, self.r.clone().into());
+        Self {
+            r: 0..4,
+            xs: self.xs,
+            at: self.at,
         }
     }
 }
@@ -168,24 +146,16 @@ pub(crate) fn cubic_spline_2d(
     y_st: SplineStencil,
     z: ArrayView2<'_, f64>,
 ) -> f64 {
-    match (x_st, y_st) {
-        (SplineStencil::Exact { i: i_x, .. }, y_st) => y_st.apply_to(z.index_axis(Axis(0), i_x)),
-        (x_st, SplineStencil::Exact { i: i_y, .. }) => x_st.apply_to(z.index_axis(Axis(1), i_y)),
-        (
-            x_st @ SplineStencil::Centered { .. },
-            SplineStencil::Centered {
-                r: y_r,
-                xs: ys,
-                at: at_y,
-            },
-        ) => {
-            let mut z_at_ys = [0.0; 4];
-            for (i, iy) in y_r.enumerate() {
-                z_at_ys[i] = x_st.apply_to(z.index_axis(Axis(1), iy));
-            }
-            low_level_spline(ys, z_at_ys, at_y)
-        }
+    let SplineStencil {
+        r: y_r,
+        xs: ys,
+        at: at_y,
+    } = y_st;
+    let mut z_at_ys = [0.0; 4];
+    for (i, iy) in y_r.enumerate() {
+        z_at_ys[i] = x_st.apply_to(z.index_axis(Axis(1), iy));
     }
+    low_level_spline(ys, z_at_ys, at_y)
 }
 
 #[cfg(test)]

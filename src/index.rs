@@ -173,36 +173,20 @@ impl Range {
         let rside = self.at(self.n_values - 2);
         if self.n_values < 4 {
             Err(OutOfBoundsError { value })
-        } else if value.is_close(lside) {
-            Ok(SplineStencil::Exact { i: 1, value })
-        } else if value.is_close(rside) {
-            Ok(SplineStencil::Exact {
-                i: self.n_values - 2,
-                value,
-            })
-        } else if value < lside || value > rside {
+        } else if value < lside || value >= rside {
             Err(OutOfBoundsError { value })
         } else {
             let iguess = ((value - self.first) / self.step).floor() as usize;
-            if value.is_close(self.at(iguess)) {
-                Ok(SplineStencil::Exact { i: iguess, value })
-            } else if self.get(iguess + 1).map_or(false, |v| v.is_close(value)) {
-                Ok(SplineStencil::Exact {
-                    i: iguess + 1,
-                    value,
-                })
-            } else {
-                Ok(SplineStencil::Centered {
-                    r: iguess - 1..iguess + 3,
-                    xs: [
-                        self.at(iguess - 1),
-                        self.at(iguess),
-                        self.at(iguess + 1),
-                        self.at(iguess + 2),
-                    ],
-                    at: value,
-                })
-            }
+            Ok(SplineStencil {
+                r: iguess - 1..iguess + 3,
+                xs: [
+                    self.at(iguess - 1),
+                    self.at(iguess),
+                    self.at(iguess + 1),
+                    self.at(iguess + 2),
+                ],
+                at: value,
+            })
         }
     }
 }
