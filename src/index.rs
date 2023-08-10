@@ -178,7 +178,7 @@ impl Range {
         } else {
             let iguess = ((value - self.first) / self.step).floor() as usize;
             Ok(SplineStencil {
-                r: iguess - 1..iguess + 3,
+                ileft: iguess - 1,
                 xs: [
                     self.at(iguess - 1),
                     self.at(iguess),

@@ -92,14 +92,14 @@ fn low_level_spline(x: [f64; 4], y: [f64; 4], at: f64) -> f64 {
 
 /// Centered cubic spline interpolator.
 pub struct SplineStencil {
-    pub r: std::ops::Range<usize>,
+    pub ileft: usize,
     pub xs: [f64; 4],
     pub at: f64,
 }
 
 impl SplineStencil {
     pub fn apply_to(&self, arr: ArrayView1<'_, f64>) -> f64 {
-        let i = self.r.start;
+        let i = self.ileft;
         let y: [f64; 4] = [arr[i], arr[i + 1], arr[i + 2], arr[i + 3]];
         low_level_spline(self.xs, y, self.at)
     }
@@ -109,9 +109,10 @@ impl SplineStencil {
         axis: Axis,
         arr: &mut ArrayView<'_, f64, D>,
     ) -> Self {
-        arr.slice_axis_inplace(axis, self.r.clone().into());
+        let i0 = self.ileft;
+        arr.slice_axis_inplace(axis, (i0..i0 + 4).into());
         Self {
-            r: 0..4,
+            ileft: 0,
             xs: self.xs,
             at: self.at,
         }
@@ -147,14 +148,16 @@ pub(crate) fn cubic_spline_2d(
     z: ArrayView2<'_, f64>,
 ) -> f64 {
     let SplineStencil {
-        r: y_r,
+        ileft: iy0,
         xs: ys,
         at: at_y,
     } = y_st;
-    let mut z_at_ys = [0.0; 4];
-    for (i, iy) in y_r.enumerate() {
-        z_at_ys[i] = x_st.apply_to(z.index_axis(Axis(1), iy));
-    }
+    let z_at_ys = [
+        x_st.apply_to(z.index_axis(Axis(1), iy0)),
+        x_st.apply_to(z.index_axis(Axis(1), iy0 + 1)),
+        x_st.apply_to(z.index_axis(Axis(1), iy0 + 2)),
+        x_st.apply_to(z.index_axis(Axis(1), iy0 + 3)),
+    ];
     low_level_spline(ys, z_at_ys, at_y)
 }
 
