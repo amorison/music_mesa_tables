@@ -8,14 +8,19 @@ MUSIC is a stellar convection code. See e.g.
 [Goffrey _et al_ (2017)](https://doi.org/10.1051/0004-6361/201628960).
 
 The so-called `'mesa'` equation of state implemented in MUSIC relies on tables
-from the [MESA project](https://docs.mesastar.org) (version 15140),
-reinterpolated in (density, internal energy) space. In the regimes typically
-simulated in MUSIC, those tables come from the work of
-[Rogers and Nayfonov (2002)](https://doi.org/10.1086/341894).
-The reinterpolated tables are bundled in this package.
+from the [MESA project](https://docs.mesastar.org) (version 15140).
+In the regimes typically simulated in MUSIC, the relevant tables are:
 
-This package is intended for post-processing of data from MUSIC simulations.
-To build stellar evolution models, refer to the MESA project.
+- FreeEOS, from [Irwin](http://freeeos.sourceforge.net/);
+- OPAL, from [Rogers and Nayfonov (2002)](https://doi.org/10.1086/341894);
+- SCVH, from [Saumon, Chabrier, and van Horn (1995)](https://doi.org/10.1086/192204).
+
+See the [MESA documentation for more details](https://docs.mesastar.org/en/r15140/eos/overview.html).
+
+For use in MUSIC, these tables are reinterpolated in (density, internal energy)
+space. The reinterpolated tables are bundled in this package. This package is
+intended for post-processing of data from MUSIC simulations. To build stellar
+evolution models, refer to the MESA project.
 
 ---
 
