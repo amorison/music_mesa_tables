@@ -19,4 +19,18 @@ To build stellar evolution models, refer to the MESA project.
 
 ---
 
-This offers a Python API.
+This offers a Python API. Here is a simple example:
+
+```python
+import music_mesa_tables as mmt
+import numpy as np
+
+eos = mmt.CstCompoEos(metallicity=0.02, he_frac=0.28)
+
+density = np.array([1.05, 15.7, 134.9])
+internal_energy = np.array([1e12, 1e15, 3e15])
+state = mmt.CstCompoState(eos, density, internal_energy)
+
+temperature = 10 ** state.compute(mmt.StateVar.LogTemperature)
+# array([2.21745558e+03, 5.00852231e+06, 1.48317986e+07])
+```
