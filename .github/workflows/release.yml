@@ -17,10 +17,6 @@ on:
 permissions:
   contents: read
 
-defaults:
-  run:
-    working-directory: ./music-mesa-tables-py
-
 jobs:
   linux:
     runs-on: ${{ matrix.platform.runner }}
