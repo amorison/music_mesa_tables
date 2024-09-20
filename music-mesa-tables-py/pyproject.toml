@@ -4,6 +4,23 @@ build-backend = "maturin"
 
 [project]
 name = "music-mesa-tables"
+description = "MESA tables for post-processing of MUSIC simulations"
+readme = "../README.md"
+authors = [
+    {name = "Adrien Morison", email = "adrien.morison@gmail.com"},
+]
+maintainers = [
+    {name = "Adrien Morison", email = "adrien.morison@gmail.com"},
+]
+license = {file = "../LICENSE"}
+urls = {homepage = "https://github.com/amorison/music_mesa_tables"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU Lesser General Public License v2 (LGPLv2)",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Rust",
+]
 requires-python = ">=3.7"
 dependencies = [
     "numpy>=1.21",
