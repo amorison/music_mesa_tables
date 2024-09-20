@@ -3,7 +3,7 @@
 #
 #    maturin generate-ci github -m ./music-mesa-tables-py/Cargo.toml --platform linux macos
 #
-name: release
+name: CI
 
 on:
   push:
