@@ -20,7 +20,7 @@ pub(crate) const RAW_TABLES: AllRawTables = AllRawTables {
     metallicities: Range::new(0.0, 0.02, 3),
     tables: &[
         MetalRawTables {
-            h_fracs: Range::new(0.0, 1.0, 6),
+            h_fracs: Range::new(0.0, 0.2, 6),
             tables: &[
                 RawTable(include_bytes!("output_DE_z0.00x0.00.bindata")),
                 RawTable(include_bytes!("output_DE_z0.00x0.20.bindata")),
