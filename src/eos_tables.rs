@@ -274,7 +274,7 @@ mod tests {
     #[test]
     fn read_eos_table() {
         let ve_eos = AllTables::default()
-            .take_at_metallicity(0.02)
+            .take_at_metallicity(0.025)
             .expect("metallicity is in range")
             .take_at_h_frac(0.8)
             .expect("helium fraction is in range");
@@ -287,7 +287,7 @@ mod tests {
     #[test]
     fn check_density() {
         let ve_eos = AllTables::default()
-            .take_at_metallicity(0.02)
+            .take_at_metallicity(0.015)
             .expect("metallicity is in range")
             .take_at_h_frac(0.8)
             .expect("hydrogen fraction is in range");
