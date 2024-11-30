@@ -30,3 +30,12 @@ dependencies = [
 profile = "release"
 compatibility = "manylinux2014"
 strip = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.4.4",
+]

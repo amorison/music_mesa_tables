@@ -1,2 +1,4 @@
 /target
 /Cargo.lock
+/music-mesa-tables-py/uv.lock
+__pycache__/

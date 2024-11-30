@@ -6,3 +6,7 @@ pyrelease version:
     git commit -m "python release {{ version }}"
     git tag -m "Release {{ version }}" -a -e "v{{ version }}"
     @echo "check last commit and ammend as necessary, then git push --follow-tags"
+
+# run python tests
+pytest:
+    uv run --project=music-mesa-tables-py -- pytest
