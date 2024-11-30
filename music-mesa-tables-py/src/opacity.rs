@@ -17,7 +17,7 @@ impl CstCompoOpacity {
     }
 
     /// Compute the opacity for this state.
-    pub fn log_opacity<'py>(&self, py: Python<'py>) -> &'py PyArrayDyn<f64> {
+    pub fn log_opacity<'py>(&self, py: Python<'py>) -> Bound<'py, PyArrayDyn<f64>> {
         let out = self.0.log_opacity();
         PyArrayDyn::from_owned_array(py, out)
     }
@@ -36,7 +36,7 @@ impl CstMetalOpacity {
     }
 
     /// Compute the opacity for this state.
-    pub fn log_opacity<'py>(&self, py: Python<'py>) -> &'py PyArrayDyn<f64> {
+    pub fn log_opacity<'py>(&self, py: Python<'py>) -> Bound<'py, PyArrayDyn<f64>> {
         let out = self.0.log_opacity();
         PyArrayDyn::from_owned_array(py, out)
     }

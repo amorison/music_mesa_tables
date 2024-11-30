@@ -1,14 +1,14 @@
 use std::sync::Arc;
 
 use music_mesa_tables::{eos_tables, state};
-use numpy::{IxDyn, PyArrayDyn};
+use numpy::{IxDyn, PyArrayDyn, PyReadonlyArrayDyn};
 use pyo3::prelude::*;
 
 use crate::eos_tables::{CstCompoEos, CstMetalEos};
 
 /// Represent a state variable that can be computed from MESA tables.
-#[pyclass(frozen)]
-#[derive(Copy, Clone)]
+#[pyclass(eq, eq_int, frozen)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum StateVar {
     LogDensity,
     LogPressure,
@@ -50,16 +50,18 @@ pub struct CstCompoState(Arc<state::CstCompoState<IxDyn>>);
 #[pymethods]
 impl CstCompoState {
     #[new]
-    pub fn new(table: &CstCompoEos, density: &PyArrayDyn<f64>, energy: &PyArrayDyn<f64>) -> Self {
-        let density = density.readonly();
-        let energy = energy.readonly();
+    pub fn new(
+        table: &CstCompoEos,
+        density: PyReadonlyArrayDyn<f64>,
+        energy: PyReadonlyArrayDyn<f64>,
+    ) -> Self {
         let state =
             state::CstCompoState::new(table.inner_table(), density.as_array(), energy.as_array());
         Self(state.into())
     }
 
     /// Compute the requested [`StateVar`] for this state.
-    pub fn compute<'py>(&self, py: Python<'py>, var: StateVar) -> &'py PyArrayDyn<f64> {
+    pub fn compute<'py>(&self, py: Python<'py>, var: StateVar) -> Bound<'py, PyArrayDyn<f64>> {
         let out = self.0.compute(var.into());
         PyArrayDyn::from_owned_array(py, out)
     }
@@ -80,13 +82,10 @@ impl CstMetalState {
     #[new]
     pub fn new(
         table: &CstMetalEos,
-        he_frac: &PyArrayDyn<f64>,
-        density: &PyArrayDyn<f64>,
-        energy: &PyArrayDyn<f64>,
+        he_frac: PyReadonlyArrayDyn<f64>,
+        density: PyReadonlyArrayDyn<f64>,
+        energy: PyReadonlyArrayDyn<f64>,
     ) -> Self {
-        let density = density.readonly();
-        let energy = energy.readonly();
-        let he_frac = he_frac.readonly();
         let state = state::CstMetalState::new(
             table.inner_table(),
             he_frac.as_array(),
@@ -97,7 +96,7 @@ impl CstMetalState {
     }
 
     /// Compute the requested [`StateVar`] for this state.
-    pub fn compute<'py>(&self, py: Python<'py>, var: StateVar) -> &'py PyArrayDyn<f64> {
+    pub fn compute<'py>(&self, py: Python<'py>, var: StateVar) -> Bound<'py, PyArrayDyn<f64>> {
         let out = self.0.compute(var.into());
         PyArrayDyn::from_owned_array(py, out)
     }
