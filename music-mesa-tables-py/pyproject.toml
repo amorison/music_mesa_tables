@@ -39,3 +39,6 @@ python_files = ["test_*.py"]
 dev = [
     "pytest>=7.4.4",
 ]
+
+[tool.uv]
+reinstall-package = ["music-mesa-tables"]
